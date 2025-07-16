@@ -5,13 +5,14 @@
 #include "types/order_params.hpp"
 #include <string>
 #include <cstdint> 
+#include <chrono>
 
 class NewOrderCommand : public Command 
 {
 public:
     NewOrderCommand(uint64_t client_order_id, uint64_t client_id, const std::string& symbol, 
                     OrderSide side, OrderType type, uint32_t quantity, double price, OrderTimeInForce tif,
-                    OrderCapacity capacity);
+                    OrderCapacity capacity, const std::chrono::system_clock::time_point& received_timestamp);
 
     void execute(Engine& engine) override;
 
@@ -24,6 +25,7 @@ public:
     double getPrice() const { return price_; }
     OrderTimeInForce getTimeInForce() const { return tif_; }
     OrderCapacity getCapacity() const { return capacity_; }
+    const std::chrono::system_clock::time_point& getReceivedTimestamp() const { return received_timestamp_; }
 
 private:
     uint64_t client_order_id_;
@@ -31,10 +33,11 @@ private:
     std::string symbol_;
     OrderSide side_;
     OrderType type_;
-    OrderTimeInForce tif_;
     uint32_t quantity_;
     double price_;
+    OrderTimeInForce tif_;
     OrderCapacity capacity_;
+    std::chrono::system_clock::time_point received_timestamp_;
 };
 
 #endif // NEW_ORDER_COMMAND_HPP

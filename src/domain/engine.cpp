@@ -16,7 +16,6 @@ void Engine::consumeQueue()
         command_queue_.wait_and_pop(command); 
         if (command) 
         {   
-            std::cout << "Processing command...\n";
             processCommands(command);
         }
         else 

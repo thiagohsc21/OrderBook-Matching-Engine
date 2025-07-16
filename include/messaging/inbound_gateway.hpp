@@ -15,8 +15,8 @@ public:
 
     void writeAheadLog(const std::string& log_message);
     bool pushToQueue(std::unique_ptr<Command> commandPtr);
-    std::unique_ptr<Command> parseAndCreateCommand(const std::string& lines, const std::string& clientId);
-    std::unique_ptr<Command> createCommandFromFields(const std::map<std::string, std::string>& fields);
+    std::unique_ptr<Command> parseAndCreateCommand(const std::string& lines, const std::string& clientId, const std::chrono::system_clock::time_point& timestamp);
+    std::unique_ptr<Command> createCommandFromFields(const std::map<std::string, std::string>& fields, const std::chrono::system_clock::time_point& timestamp);
 
 private:
     ThreadSafeQueue<std::unique_ptr<Command>>& command_queue_;

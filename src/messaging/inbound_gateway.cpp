@@ -45,7 +45,7 @@ bool InboundGateway::pushToQueue(std::unique_ptr<Command> commandPtr)
     }
 }
 
-std::unique_ptr<Command> InboundGateway::parseAndCreateCommand(const std::string& line, const std::string& clientId) 
+std::unique_ptr<Command> InboundGateway::parseAndCreateCommand(const std::string& line, const std::string& clientId, const std::chrono::system_clock::time_point& timestamp) 
 {
     if (line.empty()) return nullptr;
 
@@ -74,10 +74,10 @@ std::unique_ptr<Command> InboundGateway::parseAndCreateCommand(const std::string
         return nullptr;
     }
 
-    return createCommandFromFields(fix_fields);
+    return createCommandFromFields(fix_fields, timestamp);
 }
 
-std::unique_ptr<Command> InboundGateway::createCommandFromFields(const std::map<std::string, std::string>& fields) 
+std::unique_ptr<Command> InboundGateway::createCommandFromFields(const std::map<std::string, std::string>& fields, const std::chrono::system_clock::time_point& timestamp) 
 {
     uint64_t client_order_id = 0;
     uint64_t client_id = 0;
@@ -109,10 +109,9 @@ std::unique_ptr<Command> InboundGateway::createCommandFromFields(const std::map<
         return nullptr;
     }
 
-    // Atualize para passar os novos campos ao comando
     return std::make_unique<NewOrderCommand>(
         client_order_id, client_id, symbol, side, type, quantity, price, 
-        static_cast<OrderTimeInForce>(std::stoi(timeInForce)), 
-        static_cast<OrderCapacity>(std::stoi(orderCapacity))
+        static_cast<OrderTimeInForce>(std::stoi(timeInForce)), static_cast<OrderCapacity>(orderCapacity[0]),
+        timestamp 
     );
 }

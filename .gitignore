@@ -3,4 +3,4 @@
 .vscode/
 
 # LOG files - generated automatically after running the application
-.src/logs/
+src/logs/

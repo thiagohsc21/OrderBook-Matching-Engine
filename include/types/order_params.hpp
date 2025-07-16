@@ -57,9 +57,8 @@ enum class OrderStatus
 
 enum class OrderCapacity
 {
-	Agency = 1,
-	Principal = 2,
-	RisklessPrincipal = 3
+	Agency = 'A',
+	Principal = 'P'
 };
 
 #endif // ORDER_PARAMS_HPP
