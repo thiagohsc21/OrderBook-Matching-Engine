@@ -1,35 +1,21 @@
 #include "messaging/inbound_gateway.hpp"
+#include "messaging/new_order_command.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <filesystem> 
 
-// Static member initialization 
-std::ofstream InboundGateway::wal_file_;
 
-InboundGateway::InboundGateway(ThreadSafeQueue<std::unique_ptr<Command>>& queue, std::string& wal_file_path)
+InboundGateway::InboundGateway(ThreadSafeQueue<std::unique_ptr<Command>>& queue, const std::string& wal_file_path)
     : command_queue_(queue), 
       wal_file_path_(wal_file_path) 
 {
-    ensureWriteAheadLogOpened(wal_file_path);
-}
-
-void InboundGateway::processInputFile(const std::string& input_file_path) 
-{
-    // Implement the logic to read from the input file and process each line
-    // This will likely involve reading the file line by line and calling parseAndCreateCommand for each line
-}
-
-void InboundGateway::ensureWriteAheadLogOpened(const std::string& wal_file_path) 
-{
-    // Open the write-ahead log file if it is not already opened
+    // Move to InboundGateway::start() function after refactoring
+    wal_file_.open(wal_file_path, std::ios::out | std::ios::trunc);
     if (!wal_file_.is_open()) 
     {
-        wal_file_.open(wal_file_path, std::ios::app);
-        if (!wal_file_.is_open()) 
-        {
-            std::cerr << "Failed to open WAL file: " << wal_file_path << '\n';
-        }
+        std::cerr << "Failed to open WAL file: " << wal_file_path << '\n';
     }
 }
 
@@ -45,14 +31,32 @@ void InboundGateway::writeAheadLog(const std::string& log_message)
     }
 }
 
-void InboundGateway::parseAndCreateCommand(const std::string& line) 
+bool InboundGateway::pushToQueue(std::unique_ptr<Command> commandPtr) 
 {
+    if (commandPtr) 
+    {
+        command_queue_.push(std::move(commandPtr));
+        return true;
+    } 
+    else
+    {
+        std::cerr << "Failed to push command to queue: commandPtr is null.\n";
+        return false;
+    }
+}
+
+std::unique_ptr<Command> InboundGateway::parseAndCreateCommand(const std::string& line, const std::string& clientId) 
+{
+    if (line.empty()) return nullptr;
+
     writeAheadLog(line);
 
     std::stringstream oss(line);
     std::string tag;
+
     std::map<std::string, std::string> fix_fields;
-    
+    fix_fields["1"] = clientId; 
+
     while (std::getline(oss, tag, '|')) 
     {
         std::size_t pos = tag.find('=');
@@ -64,11 +68,51 @@ void InboundGateway::parseAndCreateCommand(const std::string& line)
         }
     }
 
-    std::map<std::string, std::string>::iterator it = fix_fields.begin();
-    while (it != fix_fields.end()) 
+    if(fix_fields.size() < 2) 
     {
-        std::cout << it->first << " = " << it->second << '\n';
-        ++it;
+        std::cerr << "No valid FIX fields found\n";
+        return nullptr;
     }
 
+    return createCommandFromFields(fix_fields);
+}
+
+std::unique_ptr<Command> InboundGateway::createCommandFromFields(const std::map<std::string, std::string>& fields) 
+{
+    uint64_t client_order_id = 0;
+    uint64_t client_id = 0;
+    std::string symbol;
+    OrderSide side;
+    OrderType type;
+    uint32_t quantity = 0;
+    double price = 0.0;
+    std::string ordType;
+    std::string timeInForce;
+    std::string orderCapacity;
+
+    try 
+    {
+        client_order_id = std::stoull(fields.at("11"));
+        client_id = std::stoull(fields.at("1"));
+        symbol = fields.at("55");
+        side = static_cast<OrderSide>(std::stoi(fields.at("54")));
+        type = static_cast<OrderType>(std::stoi(fields.at("40")));
+        quantity = std::stoul(fields.at("38"));
+        price = std::stod(fields.at("44"));
+        ordType = fields.at("40");          
+        timeInForce = fields.at("59");     
+        orderCapacity = fields.at("47");   
+    } 
+    catch (const std::exception& e) 
+    {
+        std::cerr << "Erro ao converter campos do FIX: " << e.what() << "\n";
+        return nullptr;
+    }
+
+    // Atualize para passar os novos campos ao comando
+    return std::make_unique<NewOrderCommand>(
+        client_order_id, client_id, symbol, side, type, quantity, price, 
+        static_cast<OrderTimeInForce>(std::stoi(timeInForce)), 
+        static_cast<OrderCapacity>(std::stoi(orderCapacity))
+    );
 }

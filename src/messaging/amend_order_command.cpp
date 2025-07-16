@@ -7,7 +7,7 @@ AmendOrderCommand::AmendOrderCommand(uint64_t order_id, uint32_t new_quantity, d
 {
 }
 
-void AmendOrderCommand::execute(MatchingEngine& engine) 
+void AmendOrderCommand::execute(Engine& engine) 
 {
     // Implementation of the execute method, which will interact with the MatchingEngine
     // to process the amend order command.

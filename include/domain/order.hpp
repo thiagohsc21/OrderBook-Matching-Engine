@@ -9,10 +9,12 @@
 class Order 
 {
 public:
-	Order(uint64_t client_id, uint64_t client_order_id,
+	Order(uint64_t order_id, uint64_t client_id, uint64_t client_order_id,
 	      const std::string& symbol,  double price, uint32_t quantity, 
 		  OrderSide side, OrderType type,
 	      OrderTimeInForce time_in_force, OrderCapacity capacity);
+
+    static uint64_t getNextOrderId();
 	
 	uint64_t getOrderId() const { return order_id_; }
 	uint64_t getClientId() const { return client_id_; }

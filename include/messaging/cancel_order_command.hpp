@@ -10,7 +10,7 @@ class CancelOrderCommand : public Command
 public:
     explicit CancelOrderCommand(uint64_t order_id);
     
-    void execute(MatchingEngine& engine) override;
+    void execute(Engine& engine) override;
 
     uint64_t getOrderIdToCancel() const { return order_id_to_cancel_; }
 

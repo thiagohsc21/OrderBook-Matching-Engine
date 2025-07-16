@@ -5,11 +5,11 @@
 
 uint64_t Order::next_order_id_ = 1; // Initialize static member
 
-Order::Order(uint64_t client_id, uint64_t client_order_id,
+Order::Order(uint64_t order_id, uint64_t client_id, uint64_t client_order_id,
              const std::string& symbol, double price, uint32_t quantity, 
              OrderSide side, OrderType type,
              OrderTimeInForce time_in_force, OrderCapacity capacity)
-    : order_id_(next_order_id_++), 
+    : order_id_(order_id), 
       client_id_(client_id),
       client_order_id_(client_order_id),
       symbol_(symbol),
@@ -26,3 +26,7 @@ Order::Order(uint64_t client_id, uint64_t client_order_id,
 {
 }
 
+uint64_t Order::getNextOrderId() 
+{ 
+  return next_order_id_++; 
+}

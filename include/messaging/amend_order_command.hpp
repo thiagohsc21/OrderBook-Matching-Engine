@@ -10,7 +10,7 @@ class AmendOrderCommand : public Command
 public:
     AmendOrderCommand(uint64_t order_id, uint32_t new_quantity, double new_price);
 
-    void execute(MatchingEngine& engine) override;
+    void execute(Engine& engine) override;
     
     uint64_t getOrderId() const { return order_id_; }
     uint32_t getNewQuantity() const { return new_quantity_; }
