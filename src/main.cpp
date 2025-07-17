@@ -6,6 +6,7 @@
 #include "messaging/inbound_gateway.hpp"
 #include "utils/fix_generator.hpp"
 #include "utils/timestamp_formatter.hpp"
+#include "messaging/new_order_command.hpp"
 #include "domain/engine.hpp"
 #include <iomanip>
 #include "domain/order.hpp"
@@ -24,7 +25,7 @@ void fix_producer(InboundGateway& gateway, int thread_id, ThreadSafeQueue<std::u
 
     try 
     {
-        while (counter < 100) 
+        while (counter < 30) 
         {   
             auto [fixMessage, receivedFixTime] = FixGenerator::generateFIXMessageForThread();
             std::unique_ptr<Command> commandPtr = gateway.parseAndCreateCommand(fixMessage, std::to_string(thread_id), receivedFixTime);
@@ -62,13 +63,14 @@ int main() {
 	// A thread vai ficar rodando em segundo plano, consumindo os comandos da fila e executando-os
 	Engine engine(commandQueue);
     engine.initialize();
-	std::thread engineThread(&Engine::consumeQueue, &engine);  
 
-    int clientNumber = 30;
+	std::thread engineThread(&Engine::consumeQueue, &engine);  
+    
+    int clientNumber = 10;
     std::vector<std::thread> clients;
     for (int i = 0; i < clientNumber; ++i) 
 	{
-		std::cout << "Starting thread " << i << "...\n";
+		std::cout << "Starting Client " << i << "...\n";
 
 		// Pra cada thread, a função fix_producer é passada como callback e tanto a fila quando o id são passados como argumento
 		// É equivalente a, dentro da thread, chamar:
@@ -85,11 +87,14 @@ int main() {
 	{
         t.join();
     }
+    
+    // Sinaliza que os clientes ja pararam de produzir e ta na hora de desligar a fila
+    commandQueue.shutdown(); 
 
-	commandQueue.print_and_clear();
+    // Garante que a main espere a engine terminar de consumir os comandos da queue
+    engineThread.join(); 
 
     engine.printOrderBooks();
 
-    std::cout << "All threads finished.\n";
     return 0;
 }

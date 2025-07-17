@@ -4,6 +4,11 @@
 #include <iomanip>
 #include <sstream>
 
+OrderBook::OrderBook(const std::string& symbol) 
+    : symbol_(symbol) 
+{
+}
+
 bool OrderBook::addOrder(std::shared_ptr<Order> order)
 {
     double price = order->getPrice();
@@ -121,8 +126,8 @@ void OrderBook::printTopAsk() const
     }
 
     const auto& order = it->second.front();
-    std::cout << "Top Ask: Preço = " << order->getPrice() 
-              << ", Quantidade = " << order->getQuantity() 
+    std::cout << "Top Ask: \nPrice: " << order->getPrice() 
+              << ", Quantity: " << order->getQuantity() 
               << "\n";
 }
 
@@ -140,87 +145,134 @@ void OrderBook::printTopBid() const
     }
 
     const auto& order = it->second.front();
-    std::cout << "Top Bid: Preço = " << order->getPrice() 
-              << ", Quantidade = " << order->getQuantity() 
+    std::cout << "Top Bid: \nPrice: " << order->getPrice() 
+              << ", Quantity: " << order->getQuantity() 
               << "\n";
 }
 
 void OrderBook::printAsks() const
 {
     if (!asks_.empty())
-        std::cout << "Asks:\n";
+        std::cout << "\nAsks:\n";
 
-    // Define fixed width for price and orders columns
-    constexpr int price_width = 10;
-    constexpr int orders_width = 6;
+    constexpr int price_width = 6;
+    constexpr int qty_width = 5;
+    constexpr size_t bar_max = 130;
 
     for (const auto& [price, orders] : asks_)
     {
+        uint64_t total_qty = 0;
+        for (const auto& order : orders)
+            total_qty += order->getQuantity();
+
         std::cout << "Price: " << std::setw(price_width) << std::fixed << std::setprecision(2) << price
-                  << ", Orders: " << std::setw(orders_width) << orders.size() << " ";
-        size_t bar_count = std::min<size_t>(orders.size(), 100);
-        for (size_t i = 0; i < bar_count; ++i) std::cout << "|";
-        if (orders.size() > 50)
+                  << ", Qty: " << std::setw(qty_width) << total_qty << " ";
+        size_t bar_count = std::min<size_t>(total_qty, bar_max);
+        for (size_t i = 0; i < bar_count; ++i) 
+            std::cout << "|";
+        if (total_qty > bar_max)
             std::cout << "...";
         std::cout << "\n";
     }
+    std::cout << "\n";
 }
 
 void OrderBook::printBids() const
 {
     if (!bids_.empty())
-        std::cout << "Bids:\n";
+        std::cout << "\nBids:\n";
 
-    // Define fixed width for price and orders columns
-    constexpr int price_width = 10;
-    constexpr int orders_width = 6;
+    constexpr int price_width = 6;
+    constexpr int qty_width = 5;
+    constexpr size_t bar_max = 130;
 
     for (const auto& [price, orders] : bids_)
     {
+        uint64_t total_qty = 0;
+        for (const auto& order : orders)
+            total_qty += order->getQuantity();
+
         std::cout << "Price: " << std::setw(price_width) << std::fixed << std::setprecision(2) << price
-                  << ", Orders: " << std::setw(orders_width) << orders.size() << " ";
-        size_t bar_count = std::min<size_t>(orders.size(), 100);
-        for (size_t i = 0; i < bar_count; ++i) std::cout << "|";
-        if (orders.size() > 50)
+                  << ", Qty: " << std::setw(qty_width) << total_qty << " ";
+        size_t bar_count = std::min<size_t>(total_qty, bar_max);
+        for (size_t i = 0; i < bar_count; ++i) 
+            std::cout << "|";
+        if (total_qty > bar_max)
             std::cout << "...";
         std::cout << "\n";
     }
+    std::cout << "\n";
 }
 
 void OrderBook::printOrders() const
 {
-    std::cout << std::setw(20) << "Bids" << " | " << std::setw(20) << "Asks" << "\n";
-    std::cout << std::string(55, '-') << "\n";
+    // Constantes para controle do layout
+    const int LARGURA_COLUNA_PRECO = 18;
+    const int LARGURA_COLUNA_QTY = 12;
+    const int LARGURA_COLUNA_BARRA = 70;
 
-    // Iteradores para bids e asks
-    auto bidIt = bids_.begin();
-    auto askIt = asks_.begin();
+    // Cabeçalho
+    std::cout << std::string(LARGURA_COLUNA_PRECO + LARGURA_COLUNA_QTY + LARGURA_COLUNA_BARRA - 4, ' ') << "  [" << symbol_ << "]\n";
+    std::cout << std::string(LARGURA_COLUNA_PRECO + LARGURA_COLUNA_QTY + LARGURA_COLUNA_BARRA - 4, ' ') << "Bids"
+              << " | "
+              << "Asks" << "\n";
+    const int LARGURA_TOTAL = (LARGURA_COLUNA_PRECO + LARGURA_COLUNA_QTY + LARGURA_COLUNA_BARRA) * 2 + 3;
+    std::cout << std::string(LARGURA_TOTAL, '-') << "\n";
 
-    // Enquanto houver bids ou asks
-    while (bidIt != bids_.end() || askIt != asks_.end())
+    auto bid_it = bids_.begin();
+    auto ask_it = asks_.begin();
+
+    // Itera enquanto houver ordens em qualquer um dos lados
+    while (bid_it != bids_.end() || ask_it != asks_.end())
     {
-        std::string bidStr, askStr;
-
-        if (bidIt != bids_.end())
+        // --- Processa a linha do lado BID (Compra) ---
+        if (bid_it != bids_.end())
         {
-            std::ostringstream oss;
-            oss << "Price: " << std::fixed << std::setprecision(2) << bidIt->first
-            << " Qty: " << bidIt->second.size();
-            bidStr = oss.str();
-            ++bidIt;
+            uint64_t total_qty = 0;
+            for (const auto& order : bid_it->second)
+                total_qty += order->getQuantity();
+            
+            size_t bar_count = std::min<size_t>(total_qty, LARGURA_COLUNA_BARRA);
+            std::string bar(bar_count, '|');
+
+            std::cout << std::right << std::setw(LARGURA_COLUNA_BARRA - bar.length()) << "" << bar; // Padding para a barra
+
+            // Formatando o texto com largura fixa para Qty e Price
+            std::cout << " Qty: " << std::left << std::setw(LARGURA_COLUNA_QTY - 6) << total_qty
+                      << "Price: " << std::right << std::setw(LARGURA_COLUNA_PRECO - 7) << std::fixed << std::setprecision(2) << bid_it->first;
+
+            ++bid_it;
+        }
+        else
+        {
+            // Se não há mais bids, preenche com espaços
+            std::cout << std::string(LARGURA_COLUNA_BARRA + LARGURA_COLUNA_QTY + LARGURA_COLUNA_PRECO, ' ');
         }
 
-        if (askIt != asks_.end())
-        {
-            std::ostringstream oss;
-            oss << "Price: " << std::fixed << std::setprecision(2) << askIt->first
-            << " Qty: " << askIt->second.size();
-            askStr = oss.str();
-            ++askIt;
-        }
+        std::cout << " | ";
 
-        std::cout << std::setw(25) << bidStr << " | " << std::setw(25) << askStr << "\n";
+        // --- Processa a linha do lado ASK (Venda) ---
+        if (ask_it != asks_.end())
+        {
+            uint64_t total_qty = 0;
+            for (const auto& order : ask_it->second)
+                total_qty += order->getQuantity();
+            
+            size_t bar_count = std::min<size_t>(total_qty / 5, LARGURA_COLUNA_BARRA);
+            std::string bar(bar_count, '|');
+
+            // Formatando o texto com largura fixa para Qty e Price
+            std::cout << std::left 
+                      << "Price: " << std::setw(LARGURA_COLUNA_PRECO - 7) << std::fixed << std::setprecision(2) << ask_it->first
+                      << "Qty: " << std::setw(LARGURA_COLUNA_QTY - 5) << total_qty
+                      << " " << bar;
+
+            ++ask_it;
+        }
+        
+        std::cout << "\n";
     }
+    std::cout << std::string(LARGURA_TOTAL, '-') << "\n";
 }
 
 std::shared_ptr<Order> OrderBook::getTopBid() const

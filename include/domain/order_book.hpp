@@ -14,7 +14,7 @@ using OrderIterator = std::list<std::shared_ptr<Order>>::iterator;
 class OrderBook 
 {
 public:
-    OrderBook() = default;
+    OrderBook(const std::string& symbol);
     ~OrderBook() = default;
 
     bool addOrder(std::shared_ptr<Order> order);
@@ -33,6 +33,9 @@ public:
     const std::unordered_map<uint64_t, OrderIterator>& getOrderIdMap() const { return order_id_map_; }
 
 private:
+    // Simbolo do book, por exemplo "AAPL", "GOOGL", etc.
+    std::string symbol_;
+
     // A ideia é termos uma estrutura de dados que permita acesso rápido às ordens por preço e por ID
     // Cada preço vai categorizar um nível e cada nível de preço vai conter uma lista de ordens
     std::map<double, std::list<std::shared_ptr<Order>>, std::greater<double>> bids_;
