@@ -20,23 +20,35 @@ void fix_producer(InboundGateway& gateway, int thread_id, ThreadSafeQueue<std::u
     static thread_local std::random_device rd;
     static thread_local std::mt19937 gen(rd());
     static thread_local std::uniform_real_distribution<float> dis(0.1, 1.0);
+    static thread_local int counter = 0;
 
-    while (queue.size() < 1000) 
+    try 
     {
-        auto [fixMessage, receivedFixTime] = FixGenerator::generateFIXMessageForThread(); // Recebe mensagem e timestamp
-		std::unique_ptr<Command> commandPtr = gateway.parseAndCreateCommand(fixMessage, std::to_string(thread_id), receivedFixTime);
+        while (counter < 100) 
+        {   
+            auto [fixMessage, receivedFixTime] = FixGenerator::generateFIXMessageForThread();
+            std::unique_ptr<Command> commandPtr = gateway.parseAndCreateCommand(fixMessage, std::to_string(thread_id), receivedFixTime);
 
-        if (!commandPtr) 
-        {
-            std::cerr << "Failed to create command from FIX message in thread " << thread_id << ".\n";
-			continue;
+            if (!commandPtr) 
+            {
+                std::cerr << "Failed to create command from FIX message in thread " << thread_id << ".\n";
+                continue;
+            }
+
+            counter++;
+            gateway.pushToQueue(std::move(commandPtr));
+
+            double sleep_time = dis(gen);
+            std::this_thread::sleep_for(std::chrono::duration<double>(sleep_time));
         }
-
-        gateway.pushToQueue(std::move(commandPtr));
-
-        double sleep_time = dis(gen);
-		//std::cout << "Thread " << thread_id << " FIX: " << fixMessage << " - will Sleep for " << sleep_time << " sec\n";
-        std::this_thread::sleep_for(std::chrono::duration<double>(sleep_time));
+    }
+    catch (const std::exception& ex) 
+    {
+        std::cerr << "Exception in thread " << thread_id << ": " << ex.what() << '\n';
+    }
+    catch (...) 
+    {
+        std::cerr << "Unknown exception in thread " << thread_id << ".\n";
     }
 }
 
@@ -49,9 +61,10 @@ int main() {
 	// A engine vai processar os comandos e executar as ações necessárias e para isso criamos uma thread que chama o método consumeQueue()
 	// A thread vai ficar rodando em segundo plano, consumindo os comandos da fila e executando-os
 	Engine engine(commandQueue);
+    engine.initialize();
 	std::thread engineThread(&Engine::consumeQueue, &engine);  
 
-    int clientNumber = 3;
+    int clientNumber = 30;
     std::vector<std::thread> clients;
     for (int i = 0; i < clientNumber; ++i) 
 	{
@@ -75,5 +88,8 @@ int main() {
 
 	commandQueue.print_and_clear();
 
+    engine.printOrderBooks();
+
+    std::cout << "All threads finished.\n";
     return 0;
 }

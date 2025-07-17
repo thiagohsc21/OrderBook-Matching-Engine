@@ -4,3 +4,9 @@
 
 # LOG files - generated automatically after running the application
 src/logs/
+
+# BUILD files - generated automatically after building the project
+build/
+
+# Binary files - generated automatically after building the project
+orderbook

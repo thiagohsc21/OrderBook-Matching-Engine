@@ -6,21 +6,46 @@ Engine::Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue)
 {
 }
 
+bool Engine::initialize()
+{
+    std::vector<std::string> symbols = {"AAPL", "AMZN", "GOOG"};
+    for (const std::string& symbol : symbols) 
+    {
+        if (!initializeOrderBooks(symbol)) 
+        {
+            std::cerr << "Failed to initialize OrderBook for symbol: " << symbol << "\n";
+            return false; 
+        }
+    }
+    return true;
+}
+
 void Engine::consumeQueue() 
 {
     while (true) 
     {
-        std::unique_ptr<Command> command;
-        // Wait for a command to be available in the queue
-        // This will block until a command is pushed into the queue
-        command_queue_.wait_and_pop(command); 
-        if (command) 
-        {   
-            processCommands(command);
-        }
-        else 
+        try 
         {
-            std::cerr << "Received null command.\n";
+            std::unique_ptr<Command> command;
+            // Wait for a command to be available in the queue
+            // This will block until a command is pushed into the queue
+            command_queue_.wait_and_pop(command); 
+            if (command) 
+            {   
+                processCommands(command);
+            }
+            else 
+            {
+                std::cerr << "Received null command.\n";
+            }
+        }
+        catch (const std::exception& ex) 
+        {
+            std::cerr << "Exception in consumeQueue: " << ex.what() << "\n";
+        }
+        catch (...) 
+        {
+            std::cerr << "Unknown exception in consumeQueue.\n";
         }
     }
 }
@@ -28,4 +53,39 @@ void Engine::consumeQueue()
 void Engine::processCommands(std::unique_ptr<Command>& command) 
 {
     command->execute(*this); // Chama o execute do comando, passando o engine
+}
+
+bool Engine::initializeOrderBooks(const std::string& symbol) 
+{
+    // Verifica se o OrderBook já existe para o símbolo
+    if (order_books_.find(symbol) != order_books_.end()) 
+    {
+        std::cerr << "OrderBook for symbol " << symbol << " already exists.\n";
+        return false; // Já existe um OrderBook para este símbolo
+    }
+
+    // Cria um novo OrderBook e adiciona ao mapa
+    order_books_[symbol] = std::make_unique<OrderBook>();
+    std::cout << "OrderBook for symbol " << symbol << " initialized successfully.\n";
+    return true;
+}
+
+void Engine::printOrderBooks() const 
+{
+    if (order_books_.empty()) 
+    {
+        std::cout << "No OrderBooks available.\n";
+        return;
+    }
+
+    for (const auto& [symbol, orderBookPtr] : order_books_) 
+    {
+        std::cout << "OrderBook for symbol: " << symbol << "\n";
+        orderBookPtr->printOrders();
+        orderBookPtr->printBids();
+        orderBookPtr->printAsks();
+        orderBookPtr->printTopAsk();
+        orderBookPtr->printTopBid();
+        std::cout << "------------------------------------\n";
+    }
 }

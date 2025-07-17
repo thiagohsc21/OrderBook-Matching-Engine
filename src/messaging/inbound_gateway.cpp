@@ -17,22 +17,26 @@ InboundGateway::InboundGateway(ThreadSafeQueue<std::unique_ptr<Command>>& queue,
     {
         std::cerr << "Failed to open WAL file: " << wal_file_path << '\n';
     }
+    else
+    {
+        std::cout << "WAL file opened successfully: " << wal_file_path << '\n';
+    }
 }
 
 void InboundGateway::writeAheadLog(const std::string& log_message) 
-{
+{   
     if (wal_file_.is_open()) 
     {
         wal_file_ << log_message << '\n';
     } 
     else 
     {
-        std::cerr << "Failed to open WAL file: " << wal_file_path_ << "\"'\n'";
+        std::cerr << "Failed to write log to WAL file as it's closed: " << wal_file_path_ << "\"'\n'";
     }
 }
 
 bool InboundGateway::pushToQueue(std::unique_ptr<Command> commandPtr) 
-{
+{   
     if (commandPtr) 
     {
         command_queue_.push(std::move(commandPtr));

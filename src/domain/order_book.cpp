@@ -1,6 +1,8 @@
 #include "domain/order_book.hpp"
 #include "types/order_params.hpp"
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 
 bool OrderBook::addOrder(std::shared_ptr<Order> order)
 {
@@ -18,7 +20,7 @@ bool OrderBook::addOrder(std::shared_ptr<Order> order)
         order_id_map_[order->getOrderId()] = --asks_[price].end(); 
     }
 
-    std::cout << "Ordem adicionada: ID = " << order->getOrderId() 
+    std::cout << "Ordem adicionada no book: ID = " << order->getOrderId() 
               << ", Preço = " << price 
               << ", Quantidade = " << order->getQuantity() 
               << ", Lado = " << (side == OrderSide::Buy ? "Compra" : "Venda") 
@@ -105,12 +107,57 @@ bool OrderBook::removeOrder(uint64_t orderId)
     return true;
 }
 
+void OrderBook::printTopAsk() const
+{
+    if (asks_.empty()) 
+    {
+        return;
+    }
+
+    auto it = asks_.begin();
+    if (it->second.empty()) 
+    {
+        return;
+    }
+
+    const auto& order = it->second.front();
+    std::cout << "Top Ask: Preço = " << order->getPrice() 
+              << ", Quantidade = " << order->getQuantity() 
+              << "\n";
+}
+
+void OrderBook::printTopBid() const
+{
+    if (bids_.empty()) 
+    {
+        return;
+    }
+
+    auto it = bids_.begin();
+    if (it->second.empty()) 
+    {
+        return;
+    }
+
+    const auto& order = it->second.front();
+    std::cout << "Top Bid: Preço = " << order->getPrice() 
+              << ", Quantidade = " << order->getQuantity() 
+              << "\n";
+}
+
 void OrderBook::printAsks() const
 {
-    std::cout << "Asks:\n";
-    for (const auto& [price, orders] : asks_) 
+    if (!asks_.empty())
+        std::cout << "Asks:\n";
+
+    // Define fixed width for price and orders columns
+    constexpr int price_width = 10;
+    constexpr int orders_width = 6;
+
+    for (const auto& [price, orders] : asks_)
     {
-        std::cout << "Price: " << price << ", Orders: " << orders.size() << " ";
+        std::cout << "Price: " << std::setw(price_width) << std::fixed << std::setprecision(2) << price
+                  << ", Orders: " << std::setw(orders_width) << orders.size() << " ";
         size_t bar_count = std::min<size_t>(orders.size(), 100);
         for (size_t i = 0; i < bar_count; ++i) std::cout << "|";
         if (orders.size() > 50)
@@ -121,13 +168,19 @@ void OrderBook::printAsks() const
 
 void OrderBook::printBids() const
 {
-    std::cout << "Bids:\n";
-    for (const auto& [price, orders] : bids_) 
+    if (!bids_.empty())
+        std::cout << "Bids:\n";
+
+    // Define fixed width for price and orders columns
+    constexpr int price_width = 10;
+    constexpr int orders_width = 6;
+
+    for (const auto& [price, orders] : bids_)
     {
-        std::cout << "Price: " << price << ", Orders: " << orders.size() << " ";
-        size_t bar_count = std::min<size_t>(orders.size(), 100); 
-        for (size_t i = 0; i < bar_count; ++i)
-            std::cout << "|";
+        std::cout << "Price: " << std::setw(price_width) << std::fixed << std::setprecision(2) << price
+                  << ", Orders: " << std::setw(orders_width) << orders.size() << " ";
+        size_t bar_count = std::min<size_t>(orders.size(), 100);
+        for (size_t i = 0; i < bar_count; ++i) std::cout << "|";
         if (orders.size() > 50)
             std::cout << "...";
         std::cout << "\n";
@@ -136,27 +189,37 @@ void OrderBook::printBids() const
 
 void OrderBook::printOrders() const
 {
-    std::cout << "Orders:\n";
-    for (const auto& [price, orders] : bids_) 
-    {
-        std::cout << "Bid Price: " << price << ", Orders: " << orders.size() << "\n";
-        for (const auto& order : orders) 
-        {
-            std::cout << "  Order ID: " << order->getOrderId() 
-                      << ", Quantity: " << order->getQuantity() 
-                      << ", Side: Buy\n";
-        }
-    }
+    std::cout << std::setw(20) << "Bids" << " | " << std::setw(20) << "Asks" << "\n";
+    std::cout << std::string(55, '-') << "\n";
 
-    for (const auto& [price, orders] : asks_) 
+    // Iteradores para bids e asks
+    auto bidIt = bids_.begin();
+    auto askIt = asks_.begin();
+
+    // Enquanto houver bids ou asks
+    while (bidIt != bids_.end() || askIt != asks_.end())
     {
-        std::cout << "Ask Price: " << price << ", Orders: " << orders.size() << "\n";
-        for (const auto& order : orders) 
+        std::string bidStr, askStr;
+
+        if (bidIt != bids_.end())
         {
-            std::cout << "  Order ID: " << order->getOrderId() 
-                      << ", Quantity: " << order->getQuantity() 
-                      << ", Side: Sell\n";
+            std::ostringstream oss;
+            oss << "Price: " << std::fixed << std::setprecision(2) << bidIt->first
+            << " Qty: " << bidIt->second.size();
+            bidStr = oss.str();
+            ++bidIt;
         }
+
+        if (askIt != asks_.end())
+        {
+            std::ostringstream oss;
+            oss << "Price: " << std::fixed << std::setprecision(2) << askIt->first
+            << " Qty: " << askIt->second.size();
+            askStr = oss.str();
+            ++askIt;
+        }
+
+        std::cout << std::setw(25) << bidStr << " | " << std::setw(25) << askStr << "\n";
     }
 }
 
