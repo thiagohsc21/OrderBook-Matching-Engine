@@ -4,6 +4,7 @@
 #include "utils/thread_safe_queue.hpp"
 #include "domain/order_book.hpp"
 #include "messaging/command.hpp"
+#include <atomic>
 
 class Engine 
 {
@@ -26,6 +27,7 @@ public:
 private:
     ThreadSafeQueue<std::unique_ptr<Command>>& command_queue_;
     std::unordered_map<std::string, std::unique_ptr<OrderBook>> order_books_; // Mapeia símbolos para seus respectivos OrderBooks
+    std::atomic<bool> stop_consuming_;
 };
 
 #endif // ENGINE_HPP

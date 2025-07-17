@@ -2,7 +2,8 @@
 #include <iostream>
 
 Engine::Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue)
-    : command_queue_(command_queue) 
+    : command_queue_(command_queue),
+      stop_consuming_(false)
 {
 }
 
@@ -24,30 +25,19 @@ void Engine::consumeQueue()
 {
     while (true) 
     {
-        try 
-        {
-            std::unique_ptr<Command> command;
-            // Wait for a command to be available in the queue
-            // This will block until a command is pushed into the queue
-            command_queue_.wait_and_pop(command); 
-            if (command) 
-            {   
-                processCommands(command);
-            }
-            else 
-            {
-                std::cerr << "Received null command.\n";
-            }
+        std::unique_ptr<Command> command;
+        
+        // wait_and_pop agora bloqueia até que haja um item OU a fila seja desligada.
+        if (!command_queue_.wait_and_pop(command)) {
+            // Se wait_and_pop retornar false, significa que a fila foi desligada e está vazia.
+            // É o sinal para a thread terminar.
+            break; 
         }
-        catch (const std::exception& ex) 
-        {
-            std::cerr << "Exception in consumeQueue: " << ex.what() << "\n";
-        }
-        catch (...) 
-        {
-            std::cerr << "Unknown exception in consumeQueue.\n";
-        }
+        
+        // Se chegamos aqui, temos um comando válido.
+        processCommands(command);
     }
+    std::cout << "Engine has finished consuming." << std::endl;
 }
 
 void Engine::processCommands(std::unique_ptr<Command>& command) 
@@ -61,11 +51,11 @@ bool Engine::initializeOrderBooks(const std::string& symbol)
     if (order_books_.find(symbol) != order_books_.end()) 
     {
         std::cerr << "OrderBook for symbol " << symbol << " already exists.\n";
-        return false; // Já existe um OrderBook para este símbolo
+        return false; 
     }
 
     // Cria um novo OrderBook e adiciona ao mapa
-    order_books_[symbol] = std::make_unique<OrderBook>();
+    order_books_[symbol] = std::make_unique<OrderBook>(symbol);
     std::cout << "OrderBook for symbol " << symbol << " initialized successfully.\n";
     return true;
 }
@@ -80,12 +70,10 @@ void Engine::printOrderBooks() const
 
     for (const auto& [symbol, orderBookPtr] : order_books_) 
     {
-        std::cout << "OrderBook for symbol: " << symbol << "\n";
         orderBookPtr->printOrders();
         orderBookPtr->printBids();
         orderBookPtr->printAsks();
         orderBookPtr->printTopAsk();
         orderBookPtr->printTopBid();
-        std::cout << "------------------------------------\n";
     }
 }

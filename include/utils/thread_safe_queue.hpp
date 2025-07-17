@@ -4,43 +4,56 @@
 #include <queue>
 #include <mutex>
 #include <memory>
-#include <iostream>
-#include <condition_variable> // Adicione isto
-#include "messaging/command.hpp"
-#include "messaging/new_order_command.hpp"
+#include <condition_variable>
 
 template<typename T>
 class ThreadSafeQueue 
 {
 public:
+    ThreadSafeQueue() : stop_requested_(false) {}
+
+    // Adiciona um item à fila e notifica um consumidor.
     void push(T item) 
     {
         {
             std::lock_guard<std::mutex> lock(mutex_);
             queue_.push(std::move(item));
         }
-        cond_var_.notify_one(); // Notifica um consumidor esperando
+        condition_.notify_one(); 
     }
 
-    bool try_pop(T& value) 
+    // Espera por um item e o retira da fila.
+    // Retorna 'false' se a fila foi desligada e está vazia, indicando que o consumidor deve parar.
+    bool wait_and_pop(T& value)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (queue_.empty()) 
+        std::unique_lock<std::mutex> lock(mutex_);
+        
+        // A thread vai dormir e liberar o mutex até que uma das duas condições seja verdadeira:
+        // 1. A fila não está mais vazia.
+        // 2. O desligamento foi solicitado.
+        condition_.wait(lock, [this]{ return !queue_.empty() || stop_requested_; });
+
+        // Após acordar, verificamos por que acordamos.
+        // Se o desligamento foi solicitado E a fila estiver vazia, retornamos 'false'.
+        if (stop_requested_ && queue_.empty()) 
         {
-            std::cerr << "Queue is empty, cannot pop.\n";
             return false;
         }
+
         value = std::move(queue_.front());
         queue_.pop();
         return true;
     }
 
-    void wait_and_pop(T& value)
+    // Novo método para sinalizar o desligamento da fila.
+    void shutdown() 
     {
-        std::unique_lock<std::mutex> lock(mutex_);
-        cond_var_.wait(lock, [this]{ return !queue_.empty(); });
-        value = std::move(queue_.front());
-        queue_.pop();
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            stop_requested_ = true;
+        }
+        // Notifica TODAS as threads que possam estar esperando para que elas reavaliem a condição.
+        condition_.notify_all();
     }
 
     bool empty() const 
@@ -55,47 +68,11 @@ public:
         return queue_.size();
     }
 
-    void print_and_clear() 
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        if (queue_.empty()) 
-        {
-            std::cout << "Queue is empty.\n";
-            return;
-        }
-
-        std::cout << "Queue contents:\n";
-        while (!queue_.empty()) 
-        {
-            const auto& ptr = queue_.front();
-            if (ptr) 
-            {
-                auto* order = dynamic_cast<NewOrderCommand*>(ptr.get());
-                if (order) 
-                {
-                    std::cout << "ClientID: " << order->getClientId()
-                            << ", ClientOrderID: " << order->getClientOrderId()
-                            << ", Symbol: " << order->getSymbol()
-                            << ", Quantity: " << order->getQuantity() << "\n";
-                } 
-                else 
-                {
-                    std::cout << "Comando desconhecido\n";
-                }
-            } 
-            else 
-            {
-                std::cout << "nullptr\n";
-            }
-            queue_.pop();
-        }
-}
-
 private:
     std::queue<T> queue_;
     mutable std::mutex mutex_;
-    std::condition_variable cond_var_; 
+    std::condition_variable condition_;
+    bool stop_requested_;
 };
 
 #endif // THREAD_SAFE_QUEUE_HPP
