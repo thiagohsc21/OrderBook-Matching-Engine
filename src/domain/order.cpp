@@ -26,8 +26,3 @@ Order::Order(uint64_t order_id, uint64_t client_id, uint64_t client_order_id,
       received_timestamp_(std::chrono::system_clock::now()) 
 {
 }
-
-uint64_t Order::getNextOrderId() 
-{ 
-  return next_order_id_++; 
-}

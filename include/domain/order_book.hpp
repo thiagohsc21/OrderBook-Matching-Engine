@@ -23,6 +23,8 @@ public:
     void printOrders() const;
     void printBids() const;
     void printAsks() const;
+    void printTopAsk() const;
+    void printTopBid() const;
     std::shared_ptr<Order> getTopBid() const;
     std::shared_ptr<Order> getTopAsk() const;
 

@@ -2,6 +2,9 @@
 #include "domain/order.hpp"
 #include "utils/timestamp_formatter.hpp"
 #include "types/order_params.hpp"
+#include "domain/engine.hpp"
+#include "domain/order_book.hpp"
+#include <memory>
 #include <iostream>
 #include <string>
 #include <iomanip>
@@ -26,23 +29,25 @@ NewOrderCommand::NewOrderCommand(uint64_t client_order_id, uint64_t client_id, c
 
 void NewOrderCommand::execute(Engine& engine) 
 {
-    // Cria a ordem com os parâmetros fornecidos
-    Order order(Order::getNextOrderId(), client_id_, client_order_id_, symbol_, price_, quantity_, side_, type_, tif_, capacity_, received_timestamp_);
+    std::shared_ptr<Order> order_ptr = std::make_shared<Order>(
+        Order::getNextOrderId(), client_id_, client_order_id_,
+        symbol_, price_, quantity_, side_, type_, tif_, capacity_, received_timestamp_
+    );
 
-    std::string formatted_time = TimestampFormatter::format(received_timestamp_);
+    std::unordered_map<std::string, std::unique_ptr<OrderBook>>::iterator it = engine.getOrderBooks().find(symbol_);
+    if (it == engine.getOrderBooks().end()) 
+    {
+        std::cerr << "OrderBook for symbol " << symbol_ << " not found when processing NewOrderCommand.\n";
+        return;
+    }
 
-    std::cout << "New Order Command: "
-              << "Order ID: " << order.getOrderId() 
-              << ", Client ID: " << order.getClientId() 
-              << ", Symbol: " << order.getSymbol() 
-              << ", Side: " << static_cast<int>(order.getSide()) 
-              << ", Type: " << static_cast<int>(order.getType()) 
-              << ", Quantity: " << order.getQuantity() 
-              << ", Price: " << order.getPrice() 
-              << ", Capacity: " << static_cast<char>(order.getCapacity()) 
-              << ", Received Timestamp: " << formatted_time
-              << '\n';
+    std::unique_ptr<OrderBook>& orderBookPtr = it->second;
+    if (!orderBookPtr) 
+    {
+        std::cerr << "OrderBook for symbol " << symbol_ << " is null when processing NewOrderCommand.\n";
+        return;
+    }
 
-    //engine.getOrderBook().addOrder(std::make_shared<Order>(order));
+    orderBookPtr->addOrder(order_ptr);
 }
 

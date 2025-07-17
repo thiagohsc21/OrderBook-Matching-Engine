@@ -15,7 +15,7 @@ public:
 	      OrderTimeInForce time_in_force, OrderCapacity capacity, 
 		  const std::chrono::system_clock::time_point& received_timestamp);
 
-    static uint64_t getNextOrderId();
+    static uint64_t getNextOrderId(){ return next_order_id_++; };
 	
 	uint64_t getOrderId() const { return order_id_; }
 	uint64_t getClientId() const { return client_id_; }

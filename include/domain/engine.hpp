@@ -2,6 +2,7 @@
 #define ENGINE_HPP
 
 #include "utils/thread_safe_queue.hpp"
+#include "domain/order_book.hpp"
 #include "messaging/command.hpp"
 
 class Engine 
@@ -14,11 +15,17 @@ class Engine
 public:
     explicit Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue);
 
+    bool initialize();
     void consumeQueue();
     void processCommands(std::unique_ptr<Command>& command);
+    bool initializeOrderBooks(const std::string& symbol);
+    void printOrderBooks() const;
+
+    std::unordered_map<std::string, std::unique_ptr<OrderBook>>& getOrderBooks() { return order_books_; }
 
 private:
     ThreadSafeQueue<std::unique_ptr<Command>>& command_queue_;
+    std::unordered_map<std::string, std::unique_ptr<OrderBook>> order_books_; // Mapeia símbolos para seus respectivos OrderBooks
 };
 
 #endif // ENGINE_HPP
