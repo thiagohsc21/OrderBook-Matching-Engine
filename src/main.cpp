@@ -25,7 +25,7 @@ void fix_producer(InboundGateway& gateway, int thread_id, ThreadSafeQueue<std::u
 
     try 
     {
-        while (counter < 30) 
+        while (counter < 10) 
         {   
             auto [fixMessage, receivedFixTime] = FixGenerator::generateFIXMessageForThread();
             std::unique_ptr<Command> commandPtr = gateway.parseAndCreateCommand(fixMessage, std::to_string(thread_id), receivedFixTime);
@@ -38,7 +38,6 @@ void fix_producer(InboundGateway& gateway, int thread_id, ThreadSafeQueue<std::u
 
             counter++;
             gateway.pushToQueue(std::move(commandPtr));
-
             double sleep_time = dis(gen);
             std::this_thread::sleep_for(std::chrono::duration<double>(sleep_time));
         }
@@ -66,7 +65,7 @@ int main() {
 
 	std::thread engineThread(&Engine::consumeQueue, &engine);  
     
-    int clientNumber = 10;
+    int clientNumber = 2;
     std::vector<std::thread> clients;
     for (int i = 0; i < clientNumber; ++i) 
 	{
@@ -96,5 +95,6 @@ int main() {
 
     engine.printOrderBooks();
 
+    std::cout << "All threads have finished execution.\n";
     return 0;
 }

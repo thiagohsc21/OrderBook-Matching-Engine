@@ -18,6 +18,6 @@ Esses eventos são publicados em um `Event Bus` central, que atua como um rotead
 
 Toda a fase de planejamento e design foi documentada em detalhes, consulte os seguintes documentos:
 
-* 📄 **[Requisitos do Sistema](documentation/requirements.md):** Define o "quê" o sistema deve fazer (Requisitos Funcionais) e o "quão bem" ele deve operar (Requisitos Não-Funcionais e SLOs).
-* 🏛️ **[Arquitetura do Sistema](documentation/architecture.md):** Apresenta o "como", com o design de alto nível dos componentes, o fluxograma completo e a responsabilidade de cada parte da arquitetura.
-* 📦 **[Modelo de Dados e Entidades](documentation/entities.md):** Detalha as "peças" do sistema, especificando cada entidade de domínio (`Order`, `Trade`) e de mensageria (`Command`, `Event`).
+* **[Requisitos do Sistema](documentation/requirements.md):** Define o "quê" o sistema deve fazer (Requisitos Funcionais) e o "quão bem" ele deve operar (Requisitos Não-Funcionais e SLOs).
+* **[Arquitetura do Sistema](documentation/architecture.md):** Apresenta o "como", com o design de alto nível dos componentes, o fluxograma completo e a responsabilidade de cada parte da arquitetura.
+* **[Modelo de Dados e Entidades](documentation/entities.md):** Detalha as "peças" do sistema, especificando cada entidade de domínio (`Order`, `Trade`) e de mensageria (`Command`, `Event`).
