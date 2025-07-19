@@ -29,25 +29,12 @@ NewOrderCommand::NewOrderCommand(uint64_t client_order_id, uint64_t client_id, c
 
 void NewOrderCommand::execute(Engine& engine) 
 {
+
     std::shared_ptr<Order> order_ptr = std::make_shared<Order>(
         Order::getNextOrderId(), client_id_, client_order_id_,
         symbol_, price_, quantity_, side_, type_, tif_, capacity_, received_timestamp_
     );
 
-    std::unordered_map<std::string, std::unique_ptr<OrderBook>>::iterator it = engine.getOrderBooks().find(symbol_);
-    if (it == engine.getOrderBooks().end()) 
-    {
-        std::cerr << "OrderBook for symbol " << symbol_ << " not found when processing NewOrderCommand.\n";
-        return;
-    }
-
-    std::unique_ptr<OrderBook>& orderBookPtr = it->second;
-    if (!orderBookPtr) 
-    {
-        std::cerr << "OrderBook for symbol " << symbol_ << " is null when processing NewOrderCommand.\n";
-        return;
-    }
-
-    orderBookPtr->addOrder(order_ptr);
+    engine.processNewOrderCommand(order_ptr);
 }
 

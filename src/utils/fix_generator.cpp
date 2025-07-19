@@ -64,14 +64,14 @@ std::pair<std::string, std::chrono::system_clock::time_point> FixGenerator::gene
 std::pair<std::string, std::chrono::system_clock::time_point> FixGenerator::generateFIXMessageForThread() 
 {
     static thread_local std::default_random_engine rng(std::random_device{}());
-    static thread_local std::vector<std::string> symbols = {"AAPL", "AMZN", "GOOG"};
+    static thread_local std::vector<std::string> symbols = {"GOOG"};
     static thread_local std::vector<std::string> msgTypes = {"D"};
     static thread_local std::vector<std::string> orderTypes = {"1", "2"};
     static thread_local std::vector<std::string> tif = {"1", "2", "3", "4"};
     static thread_local std::vector<std::string> orderCapacities = {"A", "P"};
 
     std::uniform_int_distribution<int> quantity_dist(1, 100);
-    std::uniform_real_distribution<double> price_dist(10.0, 10.50);
+    std::uniform_real_distribution<double> price_dist(10.0, 10.05);
     std::uniform_int_distribution<int> side_dist(1, 2);
     std::uniform_int_distribution<int> symbol_dist(0, symbols.size() - 1);
     std::uniform_int_distribution<int> type_dist(0, msgTypes.size() - 1);

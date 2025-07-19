@@ -5,6 +5,7 @@
 #include "domain/order_book.hpp"
 #include "messaging/command.hpp"
 #include <atomic>
+#include <unordered_map>
 
 class Engine 
 {
@@ -22,6 +23,9 @@ public:
     bool initializeOrderBooks(const std::string& symbol);
     void printOrderBooks() const;
 
+    bool processNewOrderCommand(std::shared_ptr<Order> new_order_ptr);
+
+    void tryMatchOrderWithTopOfBook(std::shared_ptr<Order> new_order_ptr, OrderBook& orderBook);
     std::unordered_map<std::string, std::unique_ptr<OrderBook>>& getOrderBooks() { return order_books_; }
 
 private:

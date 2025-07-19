@@ -24,12 +24,6 @@ bool OrderBook::addOrder(std::shared_ptr<Order> order)
         asks_[price].push_back(order);
         order_id_map_[order->getOrderId()] = --asks_[price].end(); 
     }
-
-    std::cout << "Ordem adicionada no book: ID = " << order->getOrderId() 
-              << ", Preço = " << price 
-              << ", Quantidade = " << order->getQuantity() 
-              << ", Lado = " << (side == OrderSide::Buy ? "Compra" : "Venda") 
-              << "\n";
     
     return true;
 }
@@ -94,7 +88,7 @@ bool OrderBook::removeOrder(uint64_t orderId)
             return false;
         }
 
-        std::cout << "Removendo ordem de venda com ID: " << orderId << " e preço: " << price << "\n";
+        std::cout << "Removendo ordem de venda com ID: " << orderId << " e preço: " << price << " - ";
 
         price_level_list.erase(list_iterator); // O(1)
 
@@ -127,7 +121,7 @@ void OrderBook::printTopAsk() const
 
     const auto& order = it->second.front();
     std::cout << "Top Ask: \nPrice: " << order->getPrice() 
-              << ", Quantity: " << order->getQuantity() 
+              << ", Quantity: " << order->getRemainingQuantity() 
               << "\n";
 }
 
@@ -146,7 +140,7 @@ void OrderBook::printTopBid() const
 
     const auto& order = it->second.front();
     std::cout << "Top Bid: \nPrice: " << order->getPrice() 
-              << ", Quantity: " << order->getQuantity() 
+              << ", Quantity: " << order->getRemainingQuantity() 
               << "\n";
 }
 
@@ -163,7 +157,7 @@ void OrderBook::printAsks() const
     {
         uint64_t total_qty = 0;
         for (const auto& order : orders)
-            total_qty += order->getQuantity();
+            total_qty += order->getRemainingQuantity();
 
         std::cout << "Price: " << std::setw(price_width) << std::fixed << std::setprecision(2) << price
                   << ", Qty: " << std::setw(qty_width) << total_qty << " ";
@@ -190,7 +184,7 @@ void OrderBook::printBids() const
     {
         uint64_t total_qty = 0;
         for (const auto& order : orders)
-            total_qty += order->getQuantity();
+            total_qty += order->getRemainingQuantity();
 
         std::cout << "Price: " << std::setw(price_width) << std::fixed << std::setprecision(2) << price
                   << ", Qty: " << std::setw(qty_width) << total_qty << " ";
@@ -230,10 +224,12 @@ void OrderBook::printOrders() const
         {
             uint64_t total_qty = 0;
             for (const auto& order : bid_it->second)
-                total_qty += order->getQuantity();
+                total_qty += order->getRemainingQuantity();
             
             size_t bar_count = std::min<size_t>(total_qty, LARGURA_COLUNA_BARRA);
-            std::string bar(bar_count, '|');
+            std::string bar;
+            if (total_qty > LARGURA_COLUNA_BARRA) bar = std::string("...") + std::string(bar_count - 3, '|');
+            else  bar = std::string(bar_count, '|');
 
             std::cout << std::right << std::setw(LARGURA_COLUNA_BARRA - bar.length()) << "" << bar; // Padding para a barra
 
@@ -256,10 +252,12 @@ void OrderBook::printOrders() const
         {
             uint64_t total_qty = 0;
             for (const auto& order : ask_it->second)
-                total_qty += order->getQuantity();
+                total_qty += order->getRemainingQuantity();
             
-            size_t bar_count = std::min<size_t>(total_qty / 5, LARGURA_COLUNA_BARRA);
-            std::string bar(bar_count, '|');
+            size_t bar_count = std::min<size_t>(total_qty, LARGURA_COLUNA_BARRA);
+            std::string bar;
+            if (total_qty > LARGURA_COLUNA_BARRA) bar = std::string(bar_count - 3, '|') + "...";
+            else  bar = std::string(bar_count, '|');
 
             // Formatando o texto com largura fixa para Qty e Price
             std::cout << std::left 
@@ -272,10 +270,10 @@ void OrderBook::printOrders() const
         
         std::cout << "\n";
     }
-    std::cout << std::string(LARGURA_TOTAL, '-') << "\n";
+    std::cout << std::string(LARGURA_TOTAL, '-') << std::endl;
 }
 
-std::shared_ptr<Order> OrderBook::getTopBid() const
+std::shared_ptr<Order> OrderBook::getTopBid() 
 {
     if (bids_.empty()) 
     {
@@ -283,17 +281,18 @@ std::shared_ptr<Order> OrderBook::getTopBid() const
         return nullptr;
     }
     
-    auto itBids = bids_.begin();
+    std::map<double, std::list<std::shared_ptr<Order>>, std::greater<double>>::const_iterator itBids = bids_.begin();
     if (itBids->second.empty()) 
     {
         std::cerr << "No orders at the top bid price.\n";
         return nullptr;
     }
     
-    return itBids->second.front(); // Retorna a primeira ordem do nível de preço mais alto
+    // Retorna o ponteiro compartilhado pra primeira ordem do nível de preço mais alto
+    return itBids->second.front(); 
 }
 
-std::shared_ptr<Order> OrderBook::getTopAsk() const
+std::shared_ptr<Order> OrderBook::getTopAsk() 
 {
     if (asks_.empty()) 
     {
@@ -307,6 +306,7 @@ std::shared_ptr<Order> OrderBook::getTopAsk() const
         std::cerr << "No orders at the top ask price.\n";
         return nullptr;
     }
-    
-    return itAsks->second.front(); // Retorna a primeira ordem do nível de preço mais baixo
+
+    // Retorna o ponteiro compartilhado pra primeira ordem do nível de preço mais baixo
+    return itAsks->second.front(); 
 }

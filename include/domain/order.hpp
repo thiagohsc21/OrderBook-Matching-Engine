@@ -16,11 +16,13 @@ public:
 		  const std::chrono::system_clock::time_point& received_timestamp);
 
     static uint64_t getNextOrderId(){ return next_order_id_++; };
+	static void resetOrderIdCounter() { next_order_id_ = 1; }
 	
 	uint64_t getOrderId() const { return order_id_; }
 	uint64_t getClientId() const { return client_id_; }
 	uint64_t getClientOrderId() const { return client_order_id_; }
 	double getPrice() const { return price_; }
+	double getFilledPrice() const { return filled_price_; }
 	uint32_t getQuantity() const { return quantity_; }
 	uint32_t getFilledQuantity() const { return filled_quantity_; }
 	uint32_t getRemainingQuantity() const { return remaining_quantity_; }
@@ -31,10 +33,11 @@ public:
 	OrderTimeInForce getTimeInForce() const { return time_in_force_; }
 	OrderCapacity getCapacity() const { return capacity_; }
 	const std::chrono::system_clock::time_point& getReceivedTimestamp() const { return received_timestamp_; }
-
-	// outros metodos voltados para manipulacao dos dados da ordem
-	// vao ser colocados com base na necessidade do sistema, que serao	
-	// definidas no futuro, porque agora esta dificil de visualizar
+	
+	void setFilledQuantity(uint32_t filled_quantity) { filled_quantity_ = filled_quantity; }
+	void setFilledPrice(double filled_price) { filled_price_ = filled_price; }
+	void setRemainingQuantity(uint32_t quantity) { remaining_quantity_ = quantity; }
+	void setOrderStatus(OrderStatus status) { status_ = status; }
 	
 private:
     static uint64_t next_order_id_; 
@@ -46,6 +49,7 @@ private:
 	std::string symbol_;
 
     double price_;
+	double filled_price_; 
     uint32_t quantity_;
     uint32_t filled_quantity_;
     uint32_t remaining_quantity_; 

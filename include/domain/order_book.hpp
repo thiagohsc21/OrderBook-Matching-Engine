@@ -25,9 +25,10 @@ public:
     void printAsks() const;
     void printTopAsk() const;
     void printTopBid() const;
-    std::shared_ptr<Order> getTopBid() const;
-    std::shared_ptr<Order> getTopAsk() const;
 
+    std::shared_ptr<Order> getTopBid();
+    std::shared_ptr<Order> getTopAsk();
+    
     const std::map<double, std::list<std::shared_ptr<Order>>, std::greater<double>>& getBids() const { return bids_; }
     const std::map<double, std::list<std::shared_ptr<Order>>>& getAsks() const { return asks_; }
     const std::unordered_map<uint64_t, OrderIterator>& getOrderIdMap() const { return order_id_map_; }
