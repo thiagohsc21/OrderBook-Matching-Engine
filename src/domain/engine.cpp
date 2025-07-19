@@ -11,7 +11,7 @@ Engine::Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue)
 
 bool Engine::initialize()
 {
-    std::vector<std::string> symbols = {"GOOG"};
+    std::vector<std::string> symbols = {"GOOG", "AMZN", "AAPL", "MSFT"};
     for (const std::string& symbol : symbols) 
     {
         if (!initializeOrderBooks(symbol)) 
@@ -92,7 +92,7 @@ bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
               << ", Quantity: " << new_order_ptr->getQuantity() 
               << "\n";
 
-    printOrderBooks(); 
+    orderBookPtr->printOrders();
    
     tryMatchOrderWithTopOfBook(new_order_ptr, *orderBookPtr);
 
@@ -106,13 +106,15 @@ bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
 
 void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> agressive_order, OrderBook& orderBook) 
 {
-    if (agressive_order->getSide() == OrderSide::Buy && orderBook.getTopAsk() && agressive_order->getPrice() >= orderBook.getTopAsk()->getPrice())
-    {   
-        std::cout << "Trying to matchbuy order with top ask.\n"; 
-        while(orderBook.getTopAsk() && agressive_order->getRemainingQuantity() > 0 && agressive_order->getPrice() >= orderBook.getTopAsk()->getPrice()) 
-        {
-            std::shared_ptr<Order> passive_order = orderBook.getTopAsk();
+    bool is_buy_side = agressive_order->getSide() == OrderSide::Buy;
+    std::shared_ptr<Order> passive_order = is_buy_side ? orderBook.getTopAsk() : orderBook.getTopBid();
+    bool is_agressive = (is_buy_side && passive_order && agressive_order->getPrice() >= passive_order->getPrice()) ||
+                        (!is_buy_side && passive_order && agressive_order->getPrice() <= passive_order->getPrice());
 
+    if (passive_order && is_agressive)
+    {   
+        while(passive_order && agressive_order->getRemainingQuantity() > 0 && is_agressive) 
+        {
             // Atualiza a ordem agressiva com as novas quantidades
             uint32_t filled_qty = std::min<uint32_t>(agressive_order->getRemainingQuantity(), passive_order->getRemainingQuantity());
             uint32_t remaining_quantity = agressive_order->getRemainingQuantity() - filled_qty;
@@ -122,7 +124,7 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> agressive_order, 
             agressive_order->setFilledQuantity(agressive_order->getFilledQuantity() + filled_qty);
             agressive_order->setFilledPrice(agressive_order->getFilledPrice() + averagePrice);
 
-            std::cout << "Matched Buy Order ID: " << agressive_order->getOrderId() << " with Sell Order ID: " << passive_order->getOrderId() << ", Filled Quantity: " << filled_qty << ", Remaining Quantity: " << agressive_order->getRemainingQuantity() << "\n";
+            std::cout << "[" << agressive_order->getSymbol() << "] Matched Order ID: " << agressive_order->getOrderId() << " with Order ID: " << passive_order->getOrderId() << ", Filled Quantity: " << filled_qty << ", Remaining Quantity: " << agressive_order->getRemainingQuantity() << "\n";
 
             // Atualiza a ordem passiva com as novas quantidades
             passive_order->setRemainingQuantity(passive_order->getRemainingQuantity() - filled_qty);
@@ -136,11 +138,15 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> agressive_order, 
                 orderBook.removeOrder(passive_order->getOrderId());
                 // dispara Event()
             }
+
+            passive_order = is_buy_side ? orderBook.getTopAsk() : orderBook.getTopBid();
+            is_agressive = (is_buy_side && passive_order && agressive_order->getPrice() >= passive_order->getPrice()) ||
+                           (!is_buy_side && passive_order && agressive_order->getPrice() <= passive_order->getPrice());
         }
 
         if (agressive_order->getFilledQuantity() == 0) 
         {
-            std::cerr << "Buy order with ID: " << agressive_order->getOrderId() << " was not filled after matching parameters.\n";
+            std::cerr << "Order with ID: " << agressive_order->getOrderId() << " was not filled after matching parameters.\n";
             return;
         }
 
@@ -148,66 +154,14 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> agressive_order, 
         if (agressive_order->getRemainingQuantity() == 0) 
         {
             agressive_order->setOrderStatus(OrderStatus::Filled);
-            std::cout << "Buy order with ID: " << agressive_order->getOrderId() << " is fully filled with average price: " << finalAveragePrice << "\n";
+            std::cout << "Order with ID: " << agressive_order->getOrderId() << " is fully filled with average price: " << finalAveragePrice << "\n";
         } 
         else 
         {
             agressive_order->setOrderStatus(OrderStatus::PartiallyFilled);
-            std::cout << "Buy order with ID: " << agressive_order->getOrderId() << " is partially filled with average price: " << finalAveragePrice << "\n";
+            std::cout << "Order with ID: " << agressive_order->getOrderId() << " is partially filled with average price: " << finalAveragePrice << "\n";
         }
     } 
-
-    if (agressive_order->getSide() == OrderSide::Sell && orderBook.getTopBid() && agressive_order->getPrice() <= orderBook.getTopBid()->getPrice())
-    {
-        std::cout << "Trying to match sell order with top bid.\n";
-        while(orderBook.getTopBid() && agressive_order->getRemainingQuantity() > 0 && agressive_order->getPrice() <= orderBook.getTopBid()->getPrice())
-        {
-            std::shared_ptr<Order> passive_order = orderBook.getTopBid();
-
-            // Atualiza a ordem agressiva com as novas quantidades
-            uint32_t filled_qty = std::min<uint32_t>(agressive_order->getRemainingQuantity(), passive_order->getRemainingQuantity());
-            uint32_t remaining_quantity = agressive_order->getRemainingQuantity() - filled_qty;
-            double averagePrice = passive_order->getPrice() * filled_qty;
-
-            agressive_order->setRemainingQuantity(remaining_quantity);
-            agressive_order->setFilledQuantity(agressive_order->getFilledQuantity() + filled_qty);
-            agressive_order->setFilledPrice(agressive_order->getFilledPrice() + averagePrice);
-
-            std::cout << "Matched Sell Order ID: " << agressive_order->getOrderId() << " with Buy Order ID: " << passive_order->getOrderId() << ", Filled Quantity: " << filled_qty << ", Remaining Quantity: " << agressive_order->getRemainingQuantity() << "\n";
-
-            // Atualiza a ordem passiva com as novas quantidades
-            passive_order->setRemainingQuantity(passive_order->getRemainingQuantity() - filled_qty);
-            passive_order->setFilledQuantity(passive_order->getFilledQuantity() + filled_qty);
-
-            if (passive_order->getRemainingQuantity() == 0) 
-            {   
-                passive_order->setOrderStatus(OrderStatus::Filled);
-                std::cout << "Order with ID: " << passive_order->getOrderId() << " is fully filled and will be removed from the book.\n";
-
-                orderBook.removeOrder(passive_order->getOrderId());
-                // dispara Event()
-            }
-        }
-
-        if (agressive_order->getFilledQuantity() == 0) 
-        {
-            std::cerr << "Sell order with ID: " << agressive_order->getOrderId() << " was not filled after matching parameters.\n";
-            return;
-        }
-
-        double finalAveragePrice = agressive_order->getFilledPrice() / agressive_order->getFilledQuantity();
-        if (agressive_order->getRemainingQuantity() == 0) 
-        {
-            agressive_order->setOrderStatus(OrderStatus::Filled);
-            std::cout << "Sell order with ID: " << agressive_order->getOrderId() << " is fully filled with average price: " << finalAveragePrice << "\n";
-        } 
-        else 
-        {
-            agressive_order->setOrderStatus(OrderStatus::PartiallyFilled);
-            std::cout << "Sell order with ID: " << agressive_order->getOrderId() << " is partially filled with average price: " << finalAveragePrice << "\n";
-        }
-    }
-
 }
 
 bool Engine::initializeOrderBooks(const std::string& symbol) 
