@@ -4,8 +4,10 @@
 #include "utils/thread_safe_queue.hpp"
 #include "domain/order_book.hpp"
 #include "messaging/commands/command.hpp"
+#include "messaging/events/event.hpp"
 #include <atomic>
 #include <unordered_map>
+
 
 class Engine 
 {
@@ -19,12 +21,12 @@ public:
 
     bool initialize();
     void consumeQueue();
-    void processCommands(std::unique_ptr<Command>& command);
     bool initializeOrderBooks(const std::string& symbol);
     void printOrderBooks() const;
 
     bool processNewOrderCommand(std::shared_ptr<Order> new_order_ptr);
-
+    void publishEvent(std::shared_ptr<const Event> event);
+    
     void tryMatchOrderWithTopOfBook(std::shared_ptr<Order> new_order_ptr, OrderBook& orderBook);
     std::unordered_map<std::string, std::unique_ptr<OrderBook>>& getOrderBooks() { return order_books_; }
 

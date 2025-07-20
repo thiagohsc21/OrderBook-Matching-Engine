@@ -4,6 +4,9 @@
 #include <sstream>
 #include "messaging/commands/new_order_command.hpp"
 #include "messaging/commands/command.hpp"
+#include "messaging/events/trade_executed_event.hpp"
+#include "messaging/events/order_accepted_event.hpp"
+#include "utils/timestamp_formatter.hpp" 
 
 Engine::Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue)
     : command_queue_(command_queue),
@@ -25,6 +28,21 @@ bool Engine::initialize()
     return true;
 }
 
+bool Engine::initializeOrderBooks(const std::string& symbol) 
+{
+    // Verifica se o OrderBook já existe para o símbolo
+    if (order_books_.find(symbol) != order_books_.end()) 
+    {
+        std::cerr << "OrderBook for symbol " << symbol << " already exists.\n";
+        return false; 
+    }
+
+    // Cria um novo OrderBook e adiciona ao mapa
+    order_books_[symbol] = std::make_unique<OrderBook>(symbol);
+    std::cout << "OrderBook for symbol " << symbol << " initialized successfully.\n";
+    return true;
+}
+
 void Engine::consumeQueue() 
 {
     while (true) 
@@ -32,21 +50,20 @@ void Engine::consumeQueue()
         std::unique_ptr<Command> command;
         
         // wait_and_pop bloqueia até que haja um item OU a fila seja desligada
+        // Se wait_and_pop retornar false, significa que a fila foi desligada e está vazia, thread deve terminar
         if (!command_queue_.wait_and_pop(command)) {
-            // Se wait_and_pop retornar false, significa que a fila foi desligada e está vazia
-            // É o sinal para a thread terminar
             break; 
         }
         
-        // Se chegamos aqui, temos um comando válido.
-        processCommands(command);
+        // Se chegamos aqui, temos um comando válido e devemos executa-lo
+        command->execute(*this);
     }
     std::cout << "Engine has finished consuming." << std::endl;
 }
 
-void Engine::processCommands(std::unique_ptr<Command>& command) 
+void Engine::publishEvent(std::shared_ptr<const Event> event)
 {
-    command->execute(*this); // Chama o execute do comando, passando o engine
+    // publica o evento
 }
 
 bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
@@ -80,52 +97,48 @@ bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
         return false; 
     }
 
-    // Coisas que devo fazer antes de adicionar a ordem:
-    // 1. Verificar se a ordem é agressiva (se é uma compra e o TopAsk <= ao preço da ordem, ou se é uma venda e o TopBid >= ao preço da ordem)
-    // 2. Se for agressiva, fazer o matching com as ordens existentes e depois adicionar a ordem na fila de ordens
-    // 3. Se não for agressiva, adicionar a ordem na fila de ordens
-    // Passamos o shared_ptr<Order> e também o OrderBook para a função de matching
-
-    //imprime parametros da ordem
     std::cout << "Processing new order with ID: " << new_order_ptr->getOrderId() << ", Symbol: " << symbol << ", Side: " << (new_order_ptr->getSide() == OrderSide::Buy ? "Buy" : "Sell") << ", Price: " << new_order_ptr->getPrice() << ", Quantity: " << new_order_ptr->getQuantity() << "\n";
-
     orderBookPtr->printOrders();
    
     tryMatchOrderWithTopOfBook(new_order_ptr, *orderBookPtr);
 
-    if (new_order_ptr->getStatus() != OrderStatus::Filled) 
+    if (!new_order_ptr->isFilled() && orderBookPtr->addOrder(new_order_ptr)) 
     {
-        return orderBookPtr->addOrder(new_order_ptr);
+        std::shared_ptr<OrderAcceptedEvent> oder_accepted_event = std::make_shared<OrderAcceptedEvent>(new_order_ptr);
+        publishEvent(oder_accepted_event);
     }
 
     return true;
 }
 
-void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggresive_order, OrderBook& orderBook) 
+void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggressive_order, OrderBook& orderBook) 
 {
-    bool is_buy_side = aggresive_order->getSide() == OrderSide::Buy;
+    bool is_buy_side = aggressive_order->getSide() == OrderSide::Buy;
     std::shared_ptr<Order> passive_order = is_buy_side ? orderBook.getTopAsk() : orderBook.getTopBid();
-    bool is_aggresive = (is_buy_side && passive_order && aggresive_order->getPrice() >= passive_order->getPrice()) ||
-                        (!is_buy_side && passive_order && aggresive_order->getPrice() <= passive_order->getPrice());
+    bool is_aggresive = (is_buy_side && passive_order && aggressive_order->getPrice() >= passive_order->getPrice()) ||
+                        (!is_buy_side && passive_order && aggressive_order->getPrice() <= passive_order->getPrice());
 
     if (passive_order && is_aggresive)
     {   
-        while(passive_order && aggresive_order->getRemainingQuantity() > 0 && is_aggresive) 
+        while(passive_order && aggressive_order->getRemainingQuantity() > 0 && is_aggresive) 
         {
             // Atualiza a ordem agressiva com as novas quantidades
-            uint32_t filled_qty = std::min<uint32_t>(aggresive_order->getRemainingQuantity(), passive_order->getRemainingQuantity());
+            uint32_t filled_qty = std::min<uint32_t>(aggressive_order->getRemainingQuantity(), passive_order->getRemainingQuantity());
 
-            aggresive_order->applyFill(filled_qty, passive_order->getPrice());
+            aggressive_order->applyFill(filled_qty, passive_order->getPrice());
             passive_order->applyFill(filled_qty, passive_order->getPrice());
 
             std::shared_ptr<Trade> trade = std::make_shared<Trade>(
-                Trade::getNextTradeId(), aggresive_order->getOrderId(), passive_order->getOrderId(),
+                Trade::getNextTradeId(), aggressive_order->getOrderId(), passive_order->getOrderId(),
                 orderBook.getSymbol(), passive_order->getPrice(), filled_qty, std::chrono::system_clock::now()
             );
             
             std::cout << "#TRADE <" << trade->getTradeId() << "> executed <" << trade->getSymbol() << "> - Qty: " << trade->getQuantity() << " @ Price: " << trade->getPrice()
-                      << " | Aggressive ID: <" << trade->getAggressiveOrderId() << ">, Passive ID: <" << trade->getPassiveOrderId() << ">" << " | Aggressive Remaining: " << aggresive_order->getRemainingQuantity()
-                      << ", Passive Remaining: " << passive_order->getRemainingQuantity() << ", Filled Qty: " << filled_qty << "\n";
+                    << " | Aggressive ID: <" << trade->getAggressiveOrderId() << ">, Passive ID: <" << trade->getPassiveOrderId() << ">" << " | Aggressive Remaining: " << aggressive_order->getRemainingQuantity()
+                    << ", Passive Remaining: " << passive_order->getRemainingQuantity() << ", Filled Qty: " << filled_qty << "\n";
+
+            std::shared_ptr<TradeExecutedEvent> trade_event = std::make_shared<TradeExecutedEvent>(trade, aggressive_order, passive_order);
+            publishEvent(trade_event);
 
             if (passive_order->isFilled()) 
             {
@@ -134,27 +147,12 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggresive_order, 
             }
 
             passive_order = is_buy_side ? orderBook.getTopAsk() : orderBook.getTopBid();
-            is_aggresive = (is_buy_side && passive_order && aggresive_order->getPrice() >= passive_order->getPrice()) ||
-                           (!is_buy_side && passive_order && aggresive_order->getPrice() <= passive_order->getPrice());
+            is_aggresive = (is_buy_side && passive_order && aggressive_order->getPrice() >= passive_order->getPrice()) ||
+                           (!is_buy_side && passive_order && aggressive_order->getPrice() <= passive_order->getPrice());
         }
 
-        std::cout << "Order with ID: " << aggresive_order->getOrderId() << " is " << (aggresive_order->getRemainingQuantity() == 0 ? "fully" : "partially") << " filled with average price: " << aggresive_order->getAveragePrice() << " and will not be added to the book\n";
+        std::cout << "Order with ID: " << aggressive_order->getOrderId() << " is " << (aggressive_order->getRemainingQuantity() == 0 ? "fully" : "partially") << " filled with average price: " << aggressive_order->getAveragePrice() << " and will not be added to the book\n";
     } 
-}
-
-bool Engine::initializeOrderBooks(const std::string& symbol) 
-{
-    // Verifica se o OrderBook já existe para o símbolo
-    if (order_books_.find(symbol) != order_books_.end()) 
-    {
-        std::cerr << "OrderBook for symbol " << symbol << " already exists.\n";
-        return false; 
-    }
-
-    // Cria um novo OrderBook e adiciona ao mapa
-    order_books_[symbol] = std::make_unique<OrderBook>(symbol);
-    std::cout << "OrderBook for symbol " << symbol << " initialized successfully.\n";
-    return true;
 }
 
 void Engine::printOrderBooks() const 
