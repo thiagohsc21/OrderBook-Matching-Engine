@@ -28,6 +28,7 @@ public:
 
     std::shared_ptr<Order> getTopBid();
     std::shared_ptr<Order> getTopAsk();
+    const std::string& getSymbol() const { return symbol_; }
     
     const std::map<double, std::list<std::shared_ptr<Order>>, std::greater<double>>& getBids() const { return bids_; }
     const std::map<double, std::list<std::shared_ptr<Order>>>& getAsks() const { return asks_; }
@@ -39,6 +40,7 @@ private:
 
     // A ideia é termos uma estrutura de dados que permita acesso rápido às ordens por preço e por ID
     // Cada preço vai categorizar um nível e cada nível de preço vai conter uma lista de ordens
+    // Dessa forma somos capazes de organizar a ordem por prioridade de preço e também de tempo (inserção na lista)
     std::map<double, std::list<std::shared_ptr<Order>>, std::greater<double>> bids_;
     std::map<double, std::list<std::shared_ptr<Order>>> asks_;
 

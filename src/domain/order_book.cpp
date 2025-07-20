@@ -62,7 +62,6 @@ bool OrderBook::removeOrder(uint64_t orderId)
             return false;
         }
 
-        std::cout << "Removendo ordem de compra com ID: " << orderId << " e preço: " << price << "\n";
 
         price_level_list.erase(list_iterator); // O(1)
         
@@ -88,8 +87,6 @@ bool OrderBook::removeOrder(uint64_t orderId)
             return false;
         }
 
-        std::cout << "Removendo ordem de venda com ID: " << orderId << " e preço: " << price << " - ";
-
         price_level_list.erase(list_iterator); // O(1)
 
         // Se a lista para este nível de preço ficou vazia, removemos o nível de preço do mapa O(logn)
@@ -101,7 +98,7 @@ bool OrderBook::removeOrder(uint64_t orderId)
 
     // Apagar a ordem do nosso índice
     order_id_map_.erase(it_map);
-    std::cout << "Ordem " << orderId << " removida com sucesso.\n";
+    std::cout << "Ordem de compra com ID: " << orderId << " e preço: " << price << " foi removida com sucesso\n";
 
     return true;
 }
