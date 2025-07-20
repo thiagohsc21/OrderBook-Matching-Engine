@@ -1,7 +1,7 @@
 #ifndef INBOUND_GATEWAY_HPP
 #define INBOUND_GATEWAY_HPP
 
-#include "messaging/command.hpp"
+#include "messaging/commands/command.hpp"
 #include "utils/thread_safe_queue.hpp" 
 #include <string>
 #include <memory>

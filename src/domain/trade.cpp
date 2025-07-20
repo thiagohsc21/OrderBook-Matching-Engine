@@ -6,7 +6,7 @@ Trade::Trade(uint64_t trade_id, uint64_t agressive_order_id, uint64_t passive_or
              const std::string& symbol, double price, uint32_t quantity, 
              const std::chrono::system_clock::time_point& timestamp)
     : trade_id_(trade_id), 
-      agressive_order_id_(agressive_order_id),
+      aggressive_order_id_(agressive_order_id),
       passive_order_id_(passive_order_id),
       symbol_(symbol),
       price_(price),

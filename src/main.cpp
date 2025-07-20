@@ -3,10 +3,10 @@
 #include <chrono>
 #include <memory>
 #include "utils/thread_safe_queue.hpp" 
-#include "messaging/inbound_gateway.hpp"
+#include "domain/inbound_gateway.hpp"
 #include "utils/fix_generator.hpp"
 #include "utils/timestamp_formatter.hpp"
-#include "messaging/new_order_command.hpp"
+#include "messaging/commands/new_order_command.hpp"
 #include "domain/engine.hpp"
 #include <iomanip>
 #include "domain/order.hpp"
@@ -93,7 +93,7 @@ int main() {
     // Garante que a main espere a engine terminar de consumir os comandos da queue
     engineThread.join(); 
 
-    engine.printOrderBooks();
+    //engine.printOrderBooks();
 
     std::cout << "All threads have finished execution.\n";
     return 0;

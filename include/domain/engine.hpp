@@ -3,7 +3,7 @@
 
 #include "utils/thread_safe_queue.hpp"
 #include "domain/order_book.hpp"
-#include "messaging/command.hpp"
+#include "messaging/commands/command.hpp"
 #include <atomic>
 #include <unordered_map>
 

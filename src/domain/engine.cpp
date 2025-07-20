@@ -2,8 +2,8 @@
 #include "domain/trade.hpp"
 #include <iostream>
 #include <sstream>
-#include "messaging/new_order_command.hpp"
-#include "messaging/command.hpp"
+#include "messaging/commands/new_order_command.hpp"
+#include "messaging/commands/command.hpp"
 
 Engine::Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue)
     : command_queue_(command_queue),
@@ -115,13 +115,13 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggresive_order, 
             // Atualiza a ordem agressiva com as novas quantidades
             uint32_t filled_qty = std::min<uint32_t>(aggresive_order->getRemainingQuantity(), passive_order->getRemainingQuantity());
 
+            aggresive_order->applyFill(filled_qty, passive_order->getPrice());
+            passive_order->applyFill(filled_qty, passive_order->getPrice());
+
             std::shared_ptr<Trade> trade = std::make_shared<Trade>(
                 Trade::getNextTradeId(), aggresive_order->getOrderId(), passive_order->getOrderId(),
                 orderBook.getSymbol(), passive_order->getPrice(), filled_qty, std::chrono::system_clock::now()
             );
-
-            aggresive_order->applyFill(filled_qty, passive_order->getPrice());
-            passive_order->applyFill(filled_qty, passive_order->getPrice());
             
             std::cout << "#TRADE <" << trade->getTradeId() << "> executed <" << trade->getSymbol() << "> - Qty: " << trade->getQuantity() << " @ Price: " << trade->getPrice()
                       << " | Aggressive ID: <" << trade->getAggressiveOrderId() << ">, Passive ID: <" << trade->getPassiveOrderId() << ">" << " | Aggressive Remaining: " << aggresive_order->getRemainingQuantity()
@@ -138,9 +138,7 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggresive_order, 
                            (!is_buy_side && passive_order && aggresive_order->getPrice() <= passive_order->getPrice());
         }
 
-        std::stringstream oss;
-        oss << "Order with ID: " << aggresive_order->getOrderId() << " is " << (aggresive_order->getRemainingQuantity() == 0 ? "fully" : "partially") << " filled with average price: " << aggresive_order->getAveragePrice() << " and will not be added to the book\n";
-        std::cout << oss.str();
+        std::cout << "Order with ID: " << aggresive_order->getOrderId() << " is " << (aggresive_order->getRemainingQuantity() == 0 ? "fully" : "partially") << " filled with average price: " << aggresive_order->getAveragePrice() << " and will not be added to the book\n";
     } 
 }
 

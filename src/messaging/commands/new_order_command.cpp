@@ -1,4 +1,4 @@
-#include "messaging/new_order_command.hpp"
+#include "messaging/commands/new_order_command.hpp"
 #include "domain/order.hpp"
 #include "utils/timestamp_formatter.hpp"
 #include "types/order_params.hpp"
