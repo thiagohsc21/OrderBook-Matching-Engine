@@ -1,5 +1,7 @@
 #include "domain/engine.hpp"
+#include "domain/trade.hpp"
 #include <iostream>
+#include <sstream>
 #include "messaging/new_order_command.hpp"
 #include "messaging/command.hpp"
 
@@ -29,10 +31,10 @@ void Engine::consumeQueue()
     {
         std::unique_ptr<Command> command;
         
-        // wait_and_pop agora bloqueia até que haja um item OU a fila seja desligada.
+        // wait_and_pop bloqueia até que haja um item OU a fila seja desligada
         if (!command_queue_.wait_and_pop(command)) {
-            // Se wait_and_pop retornar false, significa que a fila foi desligada e está vazia.
-            // É o sinal para a thread terminar.
+            // Se wait_and_pop retornar false, significa que a fila foi desligada e está vazia
+            // É o sinal para a thread terminar
             break; 
         }
         
@@ -85,12 +87,7 @@ bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
     // Passamos o shared_ptr<Order> e também o OrderBook para a função de matching
 
     //imprime parametros da ordem
-    std::cout << "Processing new order with ID: " << new_order_ptr->getOrderId() 
-              << ", Symbol: " << symbol 
-              << ", Side: " << (new_order_ptr->getSide() == OrderSide::Buy ? "Buy" : "Sell") 
-              << ", Price: " << new_order_ptr->getPrice() 
-              << ", Quantity: " << new_order_ptr->getQuantity() 
-              << "\n";
+    std::cout << "Processing new order with ID: " << new_order_ptr->getOrderId() << ", Symbol: " << symbol << ", Side: " << (new_order_ptr->getSide() == OrderSide::Buy ? "Buy" : "Sell") << ", Price: " << new_order_ptr->getPrice() << ", Quantity: " << new_order_ptr->getQuantity() << "\n";
 
     orderBookPtr->printOrders();
    
@@ -104,63 +101,46 @@ bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
     return true;
 }
 
-void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> agressive_order, OrderBook& orderBook) 
+void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggresive_order, OrderBook& orderBook) 
 {
-    bool is_buy_side = agressive_order->getSide() == OrderSide::Buy;
+    bool is_buy_side = aggresive_order->getSide() == OrderSide::Buy;
     std::shared_ptr<Order> passive_order = is_buy_side ? orderBook.getTopAsk() : orderBook.getTopBid();
-    bool is_agressive = (is_buy_side && passive_order && agressive_order->getPrice() >= passive_order->getPrice()) ||
-                        (!is_buy_side && passive_order && agressive_order->getPrice() <= passive_order->getPrice());
+    bool is_aggresive = (is_buy_side && passive_order && aggresive_order->getPrice() >= passive_order->getPrice()) ||
+                        (!is_buy_side && passive_order && aggresive_order->getPrice() <= passive_order->getPrice());
 
-    if (passive_order && is_agressive)
+    if (passive_order && is_aggresive)
     {   
-        while(passive_order && agressive_order->getRemainingQuantity() > 0 && is_agressive) 
+        while(passive_order && aggresive_order->getRemainingQuantity() > 0 && is_aggresive) 
         {
             // Atualiza a ordem agressiva com as novas quantidades
-            uint32_t filled_qty = std::min<uint32_t>(agressive_order->getRemainingQuantity(), passive_order->getRemainingQuantity());
-            uint32_t remaining_quantity = agressive_order->getRemainingQuantity() - filled_qty;
-            double averagePrice = passive_order->getPrice() * filled_qty;
+            uint32_t filled_qty = std::min<uint32_t>(aggresive_order->getRemainingQuantity(), passive_order->getRemainingQuantity());
 
-            agressive_order->setRemainingQuantity(remaining_quantity);
-            agressive_order->setFilledQuantity(agressive_order->getFilledQuantity() + filled_qty);
-            agressive_order->setFilledPrice(agressive_order->getFilledPrice() + averagePrice);
+            std::shared_ptr<Trade> trade = std::make_shared<Trade>(
+                Trade::getNextTradeId(), aggresive_order->getOrderId(), passive_order->getOrderId(),
+                orderBook.getSymbol(), passive_order->getPrice(), filled_qty, std::chrono::system_clock::now()
+            );
 
-            std::cout << "[" << agressive_order->getSymbol() << "] Matched Order ID: " << agressive_order->getOrderId() << " with Order ID: " << passive_order->getOrderId() << ", Filled Quantity: " << filled_qty << ", Remaining Quantity: " << agressive_order->getRemainingQuantity() << "\n";
+            aggresive_order->applyFill(filled_qty, passive_order->getPrice());
+            passive_order->applyFill(filled_qty, passive_order->getPrice());
+            
+            std::cout << "#TRADE <" << trade->getTradeId() << "> executed <" << trade->getSymbol() << "> - Qty: " << trade->getQuantity() << " @ Price: " << trade->getPrice()
+                      << " | Aggressive ID: <" << trade->getAggressiveOrderId() << ">, Passive ID: <" << trade->getPassiveOrderId() << ">" << " | Aggressive Remaining: " << aggresive_order->getRemainingQuantity()
+                      << ", Passive Remaining: " << passive_order->getRemainingQuantity() << ", Filled Qty: " << filled_qty << "\n";
 
-            // Atualiza a ordem passiva com as novas quantidades
-            passive_order->setRemainingQuantity(passive_order->getRemainingQuantity() - filled_qty);
-            passive_order->setFilledQuantity(passive_order->getFilledQuantity() + filled_qty);
-
-            if (passive_order->getRemainingQuantity() == 0) 
-            {   
-                passive_order->setOrderStatus(OrderStatus::Filled);
-                std::cout << "Order with ID: " << passive_order->getOrderId() << " is fully filled and will be removed from the book.\n";
-
+            if (passive_order->isFilled()) 
+            {
+                std::cout << "Order with ID: " << passive_order->getOrderId() << " is fully filled with average price: " << passive_order->getAveragePrice() << "\n";
                 orderBook.removeOrder(passive_order->getOrderId());
-                // dispara Event()
             }
 
             passive_order = is_buy_side ? orderBook.getTopAsk() : orderBook.getTopBid();
-            is_agressive = (is_buy_side && passive_order && agressive_order->getPrice() >= passive_order->getPrice()) ||
-                           (!is_buy_side && passive_order && agressive_order->getPrice() <= passive_order->getPrice());
+            is_aggresive = (is_buy_side && passive_order && aggresive_order->getPrice() >= passive_order->getPrice()) ||
+                           (!is_buy_side && passive_order && aggresive_order->getPrice() <= passive_order->getPrice());
         }
 
-        if (agressive_order->getFilledQuantity() == 0) 
-        {
-            std::cerr << "Order with ID: " << agressive_order->getOrderId() << " was not filled after matching parameters.\n";
-            return;
-        }
-
-        double finalAveragePrice = agressive_order->getFilledPrice() / agressive_order->getFilledQuantity();
-        if (agressive_order->getRemainingQuantity() == 0) 
-        {
-            agressive_order->setOrderStatus(OrderStatus::Filled);
-            std::cout << "Order with ID: " << agressive_order->getOrderId() << " is fully filled with average price: " << finalAveragePrice << "\n";
-        } 
-        else 
-        {
-            agressive_order->setOrderStatus(OrderStatus::PartiallyFilled);
-            std::cout << "Order with ID: " << agressive_order->getOrderId() << " is partially filled with average price: " << finalAveragePrice << "\n";
-        }
+        std::stringstream oss;
+        oss << "Order with ID: " << aggresive_order->getOrderId() << " is " << (aggresive_order->getRemainingQuantity() == 0 ? "fully" : "partially") << " filled with average price: " << aggresive_order->getAveragePrice() << " and will not be added to the book\n";
+        std::cout << oss.str();
     } 
 }
 
