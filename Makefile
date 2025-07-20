@@ -13,7 +13,7 @@ OBJDIR = build
 # OBJDIR: pasta onde vamos salvar os arquivos .o para não poluir src/
 
 # Fontes do projeto
-SRC = $(wildcard src/**/*.cpp) $(wildcard src/*.cpp)
+SRC = $(shell find src -name "*.cpp")
 # SRC: pega todos os arquivos .cpp dentro de src/ e subpastas (ex: src/core/, src/utils/)
 
 # Objetos correspondentes (.o)
@@ -45,6 +45,13 @@ $(OBJDIR)/%.o: src/%.cpp
 # $@ é o destino (ex: build/core/orderbook.o)
 # mkdir -p cria a pasta build/core/ se ela ainda não existir
 
+# Exibir informações úteis
+debug:
+	@echo "Source files:"  
+	@for src in $(SRC); do echo "  $$src"; done
+	@echo "Object files:"
+	@for obj in $(OBJ); do echo "  $$obj"; done
+
 # Limpeza do projeto
 clean:
 	rm -rf $(OBJDIR) $(TARGET)
@@ -52,5 +59,5 @@ clean:
 # Útil para recomeçar uma build do zero
 
 # Declara comandos que não são arquivos
-.PHONY: all clean
+.PHONY: all clean debug
 # Isso informa ao Make que 'all' e 'clean' são comandos, não arquivos reais

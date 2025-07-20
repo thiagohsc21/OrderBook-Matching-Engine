@@ -1,5 +1,5 @@
-#include "messaging/inbound_gateway.hpp"
-#include "messaging/new_order_command.hpp"
+#include "domain/inbound_gateway.hpp"
+#include "messaging/commands/new_order_command.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>

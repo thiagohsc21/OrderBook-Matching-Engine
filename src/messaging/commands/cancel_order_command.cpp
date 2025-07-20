@@ -1,4 +1,4 @@
-#include "messaging/cancel_order_command.hpp"
+#include "messaging/commands/cancel_order_command.hpp"
 
 CancelOrderCommand::CancelOrderCommand(uint64_t order_id) 
     : order_id_to_cancel_(order_id) 
