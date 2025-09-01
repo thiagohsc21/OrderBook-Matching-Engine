@@ -1,88 +1,87 @@
-## Descrição dos Componentes da Arquitetura
-Esta documentação descreve as responsabilidades e interações de cada componente principal do Simulador de Livro de Ofertas.
+## Architecture Components Description
+This documentation describes the responsibilities and interactions of each main component of the Order Book Simulator.
 
 ### 1. Inbound Gateway
 
-* **Responsabilidade Principal:** Servir como a porta de entrada do sistema. É responsável por receber, registrar para segurança e traduzir as requisições dos clientes em comandos internos.
-* **Entradas:** Comandos brutos em formato de texto (simulando o protocolo FIX).
-* **Processamento:**
-    1.  **Registro (Write-Ahead Log):** Imediatamente escreve uma cópia exata do comando bruto recebido no `Input Log`.
-    2.  **Interpretação:** Analisa o comando para entender a intenção do cliente (ex: `NEW_ORDER`, `CANCEL_ORDER`).
-    3.  **Validação:** Se a mensagem for inválida (ex: falta um campo obrigatório, formato incorreto), ele gera um `OrderRejectedEvent`.
-    4.  **Criação de Comando (Fábrica):** Se a mensagem for válida, instancia o objeto de "Comando" apropriado (ex: `NewOrderCommand`), preenchendo-o com os dados da requisição.
-* **Saídas:** Um "objeto de comando" para a `Thread Safe Inbound Queue` ou um "objeto de evento" (`OrderRejectedEvent`) para a `Execution Queue` (via `Event Bus`).
+* **Primary Responsibility:** To serve as the system's entry point, responsible for receiving, securely logging, and translating client requests into internal commands.
+* **Inputs:** Raw text commands (simulating the FIX protocol).
+* **Processing:**
+    1.  **Logging (Write-Ahead Log):** Immediately writes an exact copy of the raw command to the `Input Log` for recovery purposes.
+    2.  **Interpretation:** Parses the command to understand the client's intent (e.g., `NEW_ORDER`, `CANCEL_ORDER`).
+    3.  **Syntactic Validation:** If the message is invalid (e.g., missing a required field, incorrect format), it generates an `OrderRejectedEvent`.
+    4.  **Command Creation (Factory):** If the message is valid, it instantiates the appropriate `Command` object (e.g., `NewOrderCommand`), populating it with data from the request.
+* **Outputs:** A `Command` object to the `Command Queue` (on success) or an `OrderRejectedEvent` published to the `Event Bus` (on validation failure).
 
 ### 2. Input Log
 
-* **Responsabilidade Principal:** Prover um registro durável e cronológico de todas as requisições que entraram no sistema, para fins de "replay" (re-execução) e recuperação de desastres.
-* **Entradas:** Strings de texto com os comandos brutos, enviadas pelo `Inbound Gateway`.
-* **Processamento:** Simplesmente anexa a string recebida a um arquivo de texto em disco.
-* **Saídas:** O arquivo `InputLog.txt`.
+* **Primary Responsibility:** To provide a durable, chronological record of all requests that entered the system, for replay and disaster recovery purposes.
+* **Inputs:** Raw text strings from the `Inbound Gateway`.
+* **Processing:** Simply appends the received string to a file on disk.
+* **Outputs:** The `InputLog.txt` file.
 
-### 3. Thread Safe Inbound Queue
+### 3. Command Queue
 
-* **Responsabilidade Principal:** Desacoplar o `Inbound Gateway` do `Matching Engine`, agindo como uma "bandeja de entrada" segura e ordenada para as tarefas (comandos) a serem executadas.
-* **Entradas:** Objetos de "Comando" (`NewOrderCommand`, `CancelOrderCommand`, etc.).
-* **Processamento:** Armazena os comandos em uma estrutura FIFO (First-In, First-Out), protegida por um `mutex`.
-* **Saídas:** Objetos de "Comando", um por um, para o `Matching Engine`.
+* **Primary Responsibility:** To decouple the `Inbound Gateway` from the `Matching Engine`, acting as a safe, ordered buffer for tasks (commands) to be executed.
+* **Inputs:** `Command` objects (`NewOrderCommand`, `CancelOrderCommand`, etc.).
+* **Processing:** Stores commands in a thread-safe FIFO (First-In, First-Out) structure.
+* **Outputs:** `Command` objects, one by one, to the `Matching Engine`.
 
 ### 4. Matching Engine
 
-* **Responsabilidade Principal:** O cérebro do sistema. Orquestra a execução de todos os comandos, aplica a lógica de negócio e mantém o estado do mercado através do `Order Book`.
-* **Entradas:** Objetos de "Comando" da `Thread Safe Inbound Queue`.
-* **Processamento:**
-    1.  Retira um `Comando` da fila e o executa.
-    2.  Toda a interação com o `Order Book` (consultas, inserções, remoções) é realizada aqui.
-    3.  A cada mudança de estado ou ação significativa, gera um ou mais objetos de "Evento" (`OrderAccepted`, `TradeExecuted`, `BookUpdateEvent`, etc.) para descrever o resultado.
-* **Saídas:** Objetos de "Evento" que são **publicados** no `Event Bus / Dispatcher`.
+* **Primary Responsibility:** The brain of the system. It orchestrates the execution of all commands, applies business logic, and maintains the market state via the `Order Book`.
+* **Inputs:** `Command` objects from the `Command Queue`.
+* **Processing:**
+    1.  Dequeues a `Command` and executes it polymorphically (`command->execute(engine)`).
+    2.  All interaction with the `Order Book` (querying, inserting, removing orders) is performed here. This includes business-level validation.
+    3.  After each significant state change, it generates one or more `Event` objects (`OrderAccepted`, `TradeExecuted`, `BookUpdateEvent`, etc.) to describe the result.
+* **Outputs:** `Event` objects that are **published** to the `Event Bus / Dispatcher`.
 
 ### 5. Order Book
 
-* **Responsabilidade Principal:** Manter o estado atual e ordenado de todas as ordens ativas de compra (Bids) e venda (Asks). É o "banco de dados em memória" do `Matching Engine`.
-* **Entradas:** Requisições de inserção, remoção e consulta vindas do `Matching Engine`.
-* **Processamento:** Organiza as ordens seguindo a regra de prioridade Preço-Tempo.
-* **Saídas:** Respostas às consultas do `Matching Engine`.
+* **Primary Responsibility:** To maintain the current, ordered state of all active buy (Bids) and sell (Asks) orders. It is the in-memory database for the `Matching Engine`.
+* **Inputs:** Requests for insertion, removal, and queries from the `Matching Engine`.
+* **Processing:** Organizes orders according to Price-Time priority.
+* **Outputs:** Responses to the `Matching Engine`'s queries.
 
 ### 6. Event Bus / Dispatcher
 
-* **Responsabilidade Principal:** Agir como um roteador de eventos central. Desacopla completamente o `Matching Engine` dos vários canais de saída.
-* **Entradas:** Todos os objetos de "Evento" publicados pelo `Matching Engine`.
-* **Processamento:** Analisa o **tipo** de cada evento recebido e o direciona para a fila correta.
-* **Saídas:**
-    * Eventos transacionais (`OrderAccepted`, `TradeExecuted`, etc.) são enviados para a `Execution Queue`.
-    * Eventos de dados de mercado (`BookUpdateEvent`, etc.) são enviados para a `Market Data Channel`.
+* **Primary Responsibility:** To act as a central event router. It completely decouples the event producers (`Matching Engine`, `Inbound Gateway`) from the various outbound channels.
+* **Inputs:** All `Event` objects published by the `Matching Engine` and `Inbound Gateway`.
+* **Processing:** Analyzes the **type** of each received event and forwards it to the appropriate channel.
+* **Outputs:** Transactional events are pushed to the `Event Queue`. Market data events are pushed to the `Market Data Channel`.
 
-### 7. Execution Queue (Fila de Execução)
+### 7. Event Queue
 
-* **Responsabilidade Principal:** Servir como um buffer seguro para **eventos transacionais críticos** que não podem ser perdidos.
-* **Entradas:** Objetos de "Evento" transacionais, vindos do `Event Bus / Dispatcher`.
-* **Processamento:** Armazena os eventos em uma estrutura FIFO protegida por `mutex`.
-* **Saídas:** Objetos de "Evento" para o `Outbound Gateway` e para o `Auditor`.
+* **Primary Responsibility:** To serve as a thread-safe buffer for critical transactional events that cannot be lost.
+* **Inputs:** Transactional `Event` objects from the `Event Bus / Dispatcher`.
+* **Processing:** Stores events in a thread-safe FIFO structure.
+* **Outputs:** `Event` objects to all its consumers (the `Outbound Gateway` and the `Auditor`).
 
-### 8. Market Data Channel (Canal de Dados de Mercado)
+### 8. Market Data Channel
 
-* **Responsabilidade Principal:** Servir como um canal de distribuição para **dados de mercado**, que são de alto volume e onde apenas o estado mais recente importa.
-* **Entradas:** Objetos de "Evento" de dados de mercado, vindos do `Event Bus / Dispatcher`.
-* **Processamento:** Implementado com o padrão de "Estado Compartilhado + Notificação" (`mutex` + `condition_variable`) para garantir que os consumidores sempre peguem o dado mais recente.
-* **Saídas:** O último `MarketDataSnapshotEvent` para o `Market Data Gateway`.
+* **Primary Responsibility:** To serve as a distribution channel for high-volume market data, where only the most recent state is important.
+* **Inputs:** Market data `Event` objects from the `Event Bus / Dispatcher`.
+* **Processing:** Implemented with the "Shared State + Notification" pattern to ensure consumers always get the latest data.
+* **Outputs:** The latest `MarketDataSnapshotEvent` to the `Market Data Gateway`.
 
 ### 9. Outbound Gateway
 
-* **Responsabilidade Principal:** Comunicar os resultados **transacionais** de volta ao cliente (simulando FIX).
-* **Entradas:** Objetos de "Evento" da `Execution Queue`.
-* **Processamento:** Converte os eventos internos (`TradeExecuted`, etc.) em mensagens `ExecutionReport` no formato FIX.
-* **Saídas:** Mensagens de resposta para o cliente.
+* **Primary Responsibility:** To communicate the results of transactions back to the end client (simulating FIX).
+* **Inputs:** `Event` objects from the `Event Queue`.
+* **Processing:** Translates internal event objects into `ExecutionReport` messages in the FIX format.
+* **Outputs:** Response messages to the client.
 
 ### 10. Auditor (Journaler)
 
-* **Responsabilidade Principal:** Criar um registro de auditoria completo dos eventos **transacionais**.
-* **Entradas:** Objetos de "Evento" da `Execution Queue`.
-* **Processamento:** Formata cada evento em uma linha de texto padronizada e a persiste em disco.
-* **Saídas:** Um arquivo de texto (`SystemJournal.txt`).
+* **Primary Responsibility:** To create a complete, persistent, human-readable audit trail of all transactional events.
+* **Inputs:** `Event` objects from the `Event Queue`.
+* **Processing:** Formats each event into a standardized text line and persists it to disk.
+* **Outputs:** A text file (`SystemJournal.txt`).
 
 ### 11. Market Data Gateway
 
-* **Responsabilidade Principal:** Distribuir os dados de mercado em tempo real para todos os clientes interessados.
-* **Entradas:** O último `MarketDataSnapshotEvent` disponível no `Market Data Channel`.
-* **Processamento:** Formata os dados do snapshot em um formato apropriado para broadcast (ex: JSON).
-* **Saídas:** Um fluxo contínuo de dados de mercado para os clientes.
+* **Primary Responsibility:** To distribute real-time market data to all interested clients.
+* **Inputs:** The latest `MarketDataSnapshotEvent` available on the `Market Data Channel`.
+* **Processing:** Formats the snapshot data into a suitable broadcast format (e.g., JSON).
+* **Outputs:** A continuous stream of market data to clients.
+
