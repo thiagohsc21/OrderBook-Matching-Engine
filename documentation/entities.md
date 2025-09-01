@@ -1,93 +1,93 @@
-# Modelo de Entidades de Dados
+# Data Entity Model
 
-Este documento descreve a estrutura e o propósito das principais entidades de dados utilizadas no Simulador de Livro de Ofertas.
+This document describes the structure and purpose of the main data entities used in the Order Book & Matching Engine Simulator.
 
+## Domain Entities
 
-## Entidades de Domínio (Domain Entities)
-### Entidade: Ordem (Order)
+### Entity: Order
 
-A entidade `Ordem` representa uma intenção ou um pedido enviado por um cliente para comprar ou vender um ativo. É um objeto dinâmico e com estado, cujo ciclo de vida é gerenciado pelo `Matching Engine`.
+The `Order` entity represents an intention or a request sent by a client to buy or sell an asset. It is a dynamic, stateful object whose lifecycle is managed by the `Matching Engine`.
 
-#### Atributos
+#### Attributes
 
-| Atributo | Tipo de Dado (Conceitual) | Descrição |
+| Attribute | Data Type (Conceptual) | Description |
 | :--- | :--- | :--- |
-| `order_id` | Identificador Único | Número exclusivo que identifica a ordem dentro do sistema. |
-| `client_id` | Identificador | Identifica o cliente/participante que enviou a ordem. |
-| `client_order_id` | Identificador | Identificador único da ordem do ponto de vista do cliente. |
-| `symbol` | Texto | O código do ativo a ser negociado (ex: "PETR4"). |
-| `side` | Enumerado | O lado da ordem: `COMPRA` (Buy) ou `VENDA` (Sell). |
-| `type` | Enumerado | O tipo da ordem: `LIMIT` (com preço) ou `MARKET` (a mercado). |
-| `status` | Enumerado | O estado atual da ordem no seu ciclo de vida. |
-| `time_in_force` | Enumerado | A regra de validade da ordem (ex: `DAY`, `GTC`, `IOC`). |
-| `capacity` | Enumerado | A capacidade do participante (ex: `AGENCY`, `PRINCIPAL`). |
-| `quantity` | Objeto Numérico | Contém a **quantidade original** e a **quantidade restante** a ser executada. |
-| `price` | Número (Ponto Flutuante) | O preço limite da ordem (aplicável apenas para ordens `LIMIT`). |
-| `timestamp` | Data/Hora | O momento exato em que a ordem foi aceita pelo `Matching Engine`. |
+| `order_id` | Unique Identifier | A unique number that identifies the order within the system. |
+| `client_id` | Identifier | Identifies the client/participant who sent the order. |
+| `client_order_id` | Identifier | The unique identifier for the order from the client's perspective. |
+| `symbol` | Text | The ticker symbol of the asset being traded (e.g., "AAPL"). |
+| `side` | Enum | The side of the order: `BUY` or `SELL`. |
+| `type` | Enum | The order type: `LIMIT` (with a specified price) or `MARKET`. |
+| `status` | Enum | The current state of the order in its lifecycle. |
+| `time_in_force` | Enum | The order's validity rule (e.g., `DAY`, `GTC`, `IOC`). |
+| `capacity` | Enum | The capacity of the participant (e.g., `AGENCY`, `PRINCIPAL`). |
+| `quantity` | Numeric Object | Contains the **original quantity** and the **remaining quantity** to be executed. |
+| `price` | Floating-Point Number| The limit price of the order (only applicable for `LIMIT` orders). |
+| `timestamp` | DateTime | The exact moment the order was accepted by the `Matching Engine`. |
 
-#### Ciclo de Vida / Ações
+#### Lifecycle / Actions
 
-* **Ser Criada:** A ordem é instanciada a partir de um `NewOrderCommand`. Seu estado inicial é `NEW` e sua quantidade restante é igual à original.
-* **Ser Executada:** Após um cruzamento no `Matching Engine`, a ordem é atualizada. Sua `quantidade restante` diminui, e seu `status` pode mudar para `PARTIALLY_FILLED` ou `FILLED`.
-* **Ser Cancelada:** A partir de um `CancelOrderCommand`, o `status` da ordem é alterado para `CANCELED`, e ela é removida do `Order Book`.
-* **Ser Modificada:** A partir de um `AmendOrderCommand`, seus atributos como `quantity` ou `price` podem ser alterados.
+* **Creation:** An order is instantiated from a `NewOrderCommand`. Its initial state is `NEW`, and its remaining quantity is equal to its original quantity.
+* **Execution:** After a match in the `Matching Engine`, the order is updated. Its `remaining quantity` decreases, and its `status` may change to `PARTIALLY_FILLED` or `FILLED`.
+* **Cancellation:** From a `CancelOrderCommand`, the order's `status` is changed to `CANCELED`, and it is removed from the `Order Book`.
+* **Amendment:** From an `AmendOrderCommand`, its attributes such as `quantity` or `price` can be altered. It's implemented as a Cancel/New, first we cancel the order then we create a new one with the new values.
 
 ---
 
-### Entidade: Negócio (Trade)
+### Entity: Trade
 
-A entidade `Negócio` representa um fato histórico e imutável. É o registro de uma transação que ocorreu em um ponto específico no tempo, como resultado do cruzamento de duas ordens.
+The `Trade` entity represents an immutable historical fact. It is the record of a transaction that occurred at a specific point in time as the result of two orders matching.
 
-#### Atributos
+#### Attributes
 
-| Atributo | Tipo de Dado (Conceitual) | Descrição |
+| Attribute | Data Type (Conceptual) | Description |
 | :--- | :--- | :--- |
-| `trade_id` | Identificador Único | Número exclusivo que identifica esta transação específica. |
-| `symbol` | Texto | O código do ativo que foi negociado. |
-| `price` | Número (Ponto Flutuante) | O preço exato em que o negócio foi fechado. |
-| `quantity` | Número | A quantidade de ações que foram trocadas nesta transação. |
-| `timestamp` | Data/Hora | O momento exato em que o cruzamento ocorreu. |
-| `aggressor_order_id` | Identificador | O ID da ordem que iniciou a transação (a que chegou por último). |
-| `passive_order_id` | Identificador | O ID da ordem que já estava no livro e foi executada. |
+| `trade_id` | Unique Identifier | A unique number that identifies this specific transaction. |
+| `symbol` | Text | The ticker symbol of the asset that was traded. |
+| `price` | Floating-Point Number| The exact price at which the trade was executed. |
+| `quantity` | Number | The number of shares exchanged in this transaction. |
+| `timestamp` | DateTime | The exact moment the match occurred. |
+| `aggressor_order_id` | Identifier | The ID of the order that initiated the trade (the last to arrive). |
+| `passive_order_id` | Identifier | The ID of the order that was already resting in the book and was matched. |
 
-#### Ciclo de Vida / Ações
+#### Lifecycle / Actions
 
-* **Ser Criado:** Um `Trade` é criado uma única vez pelo `Matching Engine` no momento exato em que um cruzamento de ordens acontece.
-* **Ser Consultado:** Após sua criação, um `Trade` é imutável. Suas informações podem ser apenas lidas/consultadas, mas nunca alteradas.
+* **Creation:** A `Trade` is created once by the `Matching Engine` at the exact moment an order match occurs.
+* **Querying:** After its creation, a `Trade` is immutable. Its information can only be read/queried, never altered.
 
 ---
 
-## Entidades de Mensageria (Messaging Entities)
+## Messaging Entities
 
-Estas entidades são os veículos de comunicação transientes que transportam informações entre os componentes do sistema.
+These entities are the transient vehicles for communication between the system's components.
 
-### Comandos (Commands)
+### Commands
 
-Comandos representam uma intenção ou um pedido para alterar o estado do sistema. Eles fluem do `Inbound Gateway` para o `Matching Engine`.
+Commands represent an intent or a request to change the state of the system. They flow from the `Inbound Gateway` to the `Matching Engine`.
 
-| Comando | Propósito | Atributos Principais |
+| Command | Purpose | Key Attributes |
 | :--- | :--- | :--- |
-| `NewOrderCommand` | Solicitar a criação de uma nova ordem no livro. | Contém todos os dados de uma nova `Ordem`. |
-| `CancelOrderCommand`| Solicitar o cancelamento de uma ordem existente. | `order_id`: O ID da ordem a ser cancelada. |
-| `AmendOrderCommand` | Solicitar a modificação de uma ordem ativa. | `order_id`: O ID da ordem a ser modificada, e os novos dados (ex: nova quantidade, novo preço). |
+| `NewOrderCommand` | To request the creation of a new order. | Carries all the raw parameters required to construct a new `Order` object. |
+| `CancelOrderCommand`| To request the cancellation of an existing order. | `order_id`: The ID of the order to be canceled. |
+| `AmendOrderCommand` | To request the modification of an active order. | `order_id`: The ID of the order to be modified, and the new data (e.g., new quantity, new price). |
 
-### Eventos (Events)
+### Events
 
-Eventos são objetos imutáveis que representam um fato que já ocorreu no sistema.
+Events are immutable objects representing a fact that has already occurred in the system.
 
-#### Eventos Transacionais (para a `Execution Queue`)
+#### Transactional Events (for the `Execution Queue`)
 
-| Evento | Propósito | `ExecType` Gerado |
+| Event | Purpose | `ExecType` Generated |
 | :--- | :--- | :--- |
-| `OrderAccepted` | Notificar que uma ordem foi aceita e está no livro com status `NEW`. | `0` (New) |
-| `OrderRejected` | Notificar que uma ordem foi rejeitada na entrada. | `8` (Rejected) |
-| `TradeExecuted` | Notificar que um negócio foi executado. Causa a mudança de status da(s) ordem(ns) para `PARTIALLY_FILLED` ou `FILLED`. | `F` (Trade) |
-| `OrderPendingCancel`| Notificar que um pedido de cancelamento foi aceito e está sendo processado. |`6` (Pending Cancel)|
-| `OrderCanceled` | Notificar que um pedido de cancelamento foi bem-sucedido. | `4` (Canceled) |
-| `OrderAmended` | Notificar que uma ordem foi modificada com sucesso. | `5` (Replaced) |
+| `OrderAccepted` | To notify that a new order has been accepted for processing. | `0` (New) |
+| `OrderRejected` | To notify that a request was rejected (either by the Gateway or the Engine). | `8` (Rejected) |
+| `TradeExecuted` | To notify that a trade was executed. Carries a snapshot of the `Trade` and the updated state of the involved orders. | `F` (Trade) |
+| `OrderPendingCancel`| To notify that a cancellation request has been received and is being processed. |`6` (Pending Cancel)|
+| `OrderCanceled` | To notify that an order was successfully canceled. | `4` (Canceled) |
+| `OrderAmended` | To notify that an order was successfully modified. | `5` (Replaced) |
 
-#### Eventos de Dados de Mercado (para o `Market Data Channel`)
+#### Market Data Events (for the `Market Data Channel`)
 
-| Evento | Propósito | Atributos Principais |
+| Event | Purpose | Key Attributes |
 | :--- | :--- | :--- |
-| `BookSnapshotEvent` | Publicar uma "foto" completa do estado do livro de ofertas em um determinado momento. | `symbol`, uma lista de Bids (`preço`, `quantidade_agregada`), uma lista de Asks (`preço`, `quantidade_agregada`). |
+| `BookSnapshotEvent` | To publish a complete "picture" of the order book's state at a specific moment. | `symbol`, a list of Bids (`price`, `aggregated_quantity`), and a list of Asks (`price`, `aggregated_quantity`). |
