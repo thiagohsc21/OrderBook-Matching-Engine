@@ -14,7 +14,9 @@ public:
         : trade_(trade), 
           aggressive_order_(aggressive_order), 
           passive_order_(passive_order) {}
-    
+
+    virtual const char* getEventName() const override { return "TradeExecutedEvent"; }
+
     std::shared_ptr<const Trade> getTrade() const { return trade_; }
     std::shared_ptr<const Order> getAggressiveOrder() const { return aggressive_order_; }
     std::shared_ptr<const Order> getPassiveOrder() const { return passive_order_; }

@@ -12,7 +12,26 @@ InboundGateway::InboundGateway(ThreadSafeQueue<std::unique_ptr<Command>>& queue,
       wal_file_path_(wal_file_path) 
 {
     // Move to InboundGateway::start() function after refactoring
-    wal_file_.open(wal_file_path, std::ios::out | std::ios::trunc);
+    
+    // Create directory if it doesn't exist
+    std::filesystem::path file_path(wal_file_path);
+    std::filesystem::path dir_path = file_path.parent_path();
+    
+    if (!dir_path.empty() && !std::filesystem::exists(dir_path)) 
+    {
+        try 
+        {
+            std::filesystem::create_directories(dir_path);
+            std::cout << "Created directory: " << dir_path << '\n';
+        } 
+        catch (const std::filesystem::filesystem_error& e) 
+        {
+            std::cerr << "Failed to create directory: " << e.what() << '\n';
+        }
+    }
+    
+    // Open file with flags that create the file if it doesn't exist
+    wal_file_.open(wal_file_path, std::ios::out | std::ios::app);
     if (!wal_file_.is_open()) 
     {
         std::cerr << "Failed to open WAL file: " << wal_file_path << '\n';
@@ -20,6 +39,9 @@ InboundGateway::InboundGateway(ThreadSafeQueue<std::unique_ptr<Command>>& queue,
     else
     {
         std::cout << "WAL file opened successfully: " << wal_file_path << '\n';
+        // Clear the file content since we want to start fresh (trunc behavior)
+        wal_file_.close();
+        wal_file_.open(wal_file_path, std::ios::out | std::ios::trunc);
     }
 }
 
