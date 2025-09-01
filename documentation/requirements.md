@@ -1,139 +1,102 @@
-## Requisitos Funcionais
+# System Requirements
 
-### RF01: Receber e Rejeitar Ordens (Simulando Protocolo FIX)
+This document outlines the functional and non-functional requirements for the Order Book & Matching Engine Simulator. The architecture reflects the final design, incorporating an Event Bus and dedicated communication channels.
 
-O sistema deve ter um ponto de entrada para receber ordens de compra e venda. Ele também deve ser capaz de validar e rejeitar ordens que não atendam aos critérios básicos do negócio.
+## Functional Requirements (FR)
 
-O **Gateway de Entrada (Input Gateway)** é o componente responsável por esta função. Ele irá ler uma representação simplificada de uma mensagem FIX (Por exemplo `NewOrderSingle`, que seria equivalente a 35=D).
+### FR01: Receive and Reject Orders
 
-* **Validação:** Ao receber uma ordem, o Gateway deve realizar verificações imediatas:
-    * O símbolo do ativo é válido/conhecido?
-    * O preço é um valor positivo? (Para `Limit Orders`).
-    * A quantidade é um valor positivo?
-    * O lado (`Side`) é 'Compra' ou 'Venda'?
+The system must have an entry point to receive and process requests (simulating the FIX protocol). It must also validate these requests and reject those that do not meet basic business criteria.
 
-* **Aceitação:** Se a ordem for válida, o Gateway a traduz para o nosso objeto `Order` interno e a coloca na **Fila de Entrada (Inbound Queue)** para ser processada pelo Motor.
+The **Inbound Gateway** is the component responsible for this function.
 
-* **Rejeição:** Se a ordem for inválida, o Gateway não a envia para o motor. Em vez disso, ele gera um evento de **Rejeição (Reject)** com o motivo da falha e o envia diretamente para a **Fila de Saída (Outbound Queue)**, para que o cliente seja notificado.
+* **Validation:** Upon receiving a message, the Gateway performs immediate checks (e.g., valid symbol, positive price/quantity, etc.).
+* **Acceptance:** If the message is valid, the Gateway translates it into the appropriate internal **Command** object (e.g., `NewOrderCommand`, `CancelOrderCommand`) and places it on the **Command Queue**.
+* **Rejection:** If the message is invalid, the Gateway generates a **Rejection Event** (e.g., `OrderRejectedEvent`) and publishes it to the **Event Bus**, which then routes it to the **Event Queue**.
 
-### RF02: Armazenar Ordens no Livro de Ofertas por Ativo
+### FR02: Store Orders in the Order Book by Asset
 
- As ordens que são aceitas, mas não executadas imediatamente, devem ser armazenadas de forma organizada em um "Livro de Ofertas" (`Order Book`), que é específico para cada ativo.
+Orders that are accepted but not immediately executed must be stored in an organized "Order Book," which is specific to each asset.
 
-* O **Motor de Matching (Matching Engine)** é o dono dos livros de ofertas.
-* Teremos uma estrutura de dados principal que mapeia um `Symbol` (ex: "PETR4") para o seu respectivo `OrderBook`.
-* Cada `OrderBook` é, na verdade, composto por duas estruturas de dados separadas:
-    * **Bids (Compras):** Onde as ordens de compra são armazenadas, ordenadas pela regra de prioridade (preço mais alto primeiro).
-    * **Asks (Vendas):** Onde as ordens de venda são armazenadas, ordenadas pela regra de prioridade (preço mais baixo primeiro).
-* Quando o motor processa uma nova ordem que não cruza com nenhuma outra, ele a insere na estrutura correta (Bid ou Ask) dentro do `Order Book` do seu ativo.
+* The **Matching Engine** owns the collection of order books.
+* A primary data structure maps a `Symbol` (e.g., "AAPL") to its respective `OrderBook` instance.
+* Each `OrderBook` is composed of two sides:
+    * **Bids:** Where buy orders are stored, sorted by Price-Time Priority (highest price first).
+    * **Asks:** Where sell orders are stored, sorted by Price-Time Priority (lowest price first).
 
-### RF03: Executar Ordens com Base no Preço e Tempo
+### FR03: Execute Orders Based on Price-Time Priority
 
-Esta é a lógica central do sistema. O motor deve continuamente tentar cruzar ordens de compra e venda, respeitando a prioridade de preço e, para preços iguais, a prioridade de tempo (quem chegou primeiro).
+This is the central business logic. The engine must attempt to match incoming aggressive orders against passive orders resting on the opposite side of the book.
 
-* O **Motor de Matching**, ao receber uma nova ordem (a ordem "agressora"), verifica o lado oposto do livro.
-* **Exemplo:** Chega uma ordem de compra de 100 ações de `PETR4` a R$ 30,00.
-    * O motor olha o lado das vendas (`Asks`) do livro de `PETR4`.
-    * Ele procura a ordem de venda com o menor preço. Digamos que seja uma venda a R$ 29,98.
-    * Como o preço de compra (30,00) é maior ou igual ao preço de venda (29,98), um negócio pode acontecer!
-    * O negócio é fechado pelo preço da ordem que já estava no livro (a ordem "passiva"), ou seja, R$ 29,98.
-    * A quantidade executada será o mínimo entre as duas ordens.
-* **Prioridade de Tempo:** Se houver múltiplas ordens de venda a R$ 29,98, o motor escolherá a que foi inserida no livro primeiro.
+* The matching logic follows strict **Price-Time Priority**.
+* The trade price is always determined by the price of the passive order (the order that was already in the book).
+* The executed quantity is the minimum of the aggressive and passive orders' available quantities.
 
-### RF04: Disparar Eventos de Execução Detalhados
+### FR04: Dispatch Detailed Execution Events
 
-Após qualquer ação significativa em uma ordem, o sistema deve gerar e disparar um evento claro e padronizado, informando o novo estado da ordem.
+After any significant business action, the system must generate a clear, immutable event to report what happened.
 
-* O **Motor de Matching** é o responsável por gerar esses eventos após processar uma ordem.
-* Os eventos são colocados na **Fila de Saída (Outbound Queue)** para serem consumidos pelo **Publicador de Eventos**.
-* **Alguns exemplos de eventos (mais detalhes no `entities.md`):**
-    * `Accepted`: A ordem foi aceita, mas ainda não executada (está passiva no livro).
-    * `Canceled`: Uma ordem que estava no livro foi cancelada com sucesso.
-    * `Partially Filled`: Um negócio ocorreu, mas a ordem foi apenas parcialmente executada. O evento deve informar a quantidade executada e a quantidade que ainda resta.
-    * `Filled`: A ordem foi completamente executada por um ou mais negócios.
-    * `Trade`: Um match entre duas ordens aconteceu e um trade foi executado.
+* The **Matching Engine** is responsible for generating all business events.
+* These events are published to a central **Event Bus / Dispatcher**.
+* The `Dispatcher` then routes each event to the appropriate channel based on its type:
+    * Transactional events (`OrderAccepted`, `TradeExecuted`, `OrderCanceled`) are sent to the **Event Queue**.
+    * Market data events (`BookSnapshotEvent`) are sent to the **Market Data Channel**.
 
-### RF05: Armazenar um Journal (Log) de Todos os Eventos de Saída
+### FR05: Store a Journal of Transactional Events
 
-O sistema deve manter um registro cronológico, sequencial e imutável de todos os eventos significativos que processa. Este journal é a fonte da verdade e é crucial para auditoria e recuperação.
+The system must maintain a chronological and immutable record of all transactional events. This journal is the definitive audit trail.
 
-* O **Publicador de Eventos** (ou um componente dedicado de `Journaling`) será responsável por esta tarefa.
-* Toda vez que um evento é retirado da **Fila de Saída** (seja uma Rejeição, uma Aceitação, um `Fill`, etc.), ele deve ser escrito de forma serializada no arquivo de journal.
-* O formato deve ser padronizado, por exemplo: `[Timestamp] [Tipo de Evento] [Detalhes do Evento em formato Chave=Valor]`
-    ```log
-    2025-07-09T19:18:46.123Z NEW_ORDER OrderID=123 Symbol=PETR4 Side=Buy Qty=100 Price=30.00
-    2025-07-09T19:18:46.456Z TRADE TradeID=1 Price=29.98 Qty=50 AggressorID=123 PassiveID=120
-    ```
-* Este log é a prova de que tudo aconteceu e na ordem correta.
+* The **Auditor** component is responsible for this task.
+* It consumes events from the **Event Queue**.
+* For each event, it formats a detailed log entry and persists it to a file (`auditor.log`).
+* The format is standardized, e.g.: `[Timestamp] [Event_Type] [Key=Value Details]`
 
-### RF06: Armazenar um Journal (Log) de Todos os Eventos de Entrada
+### FR06: Store a Log of All Inbound Requests (Write-Ahead Log)
 
-O sistema deve manter um registro cronológico, sequencial e imutável de todos os eventos (FIX) significativos que processa (Write Ahead Logging). Este log é a fonte da verdade e é crucial para auditoria e recuperação.
+The system must maintain a durable record of all raw commands received from clients to ensure recoverability.
 
-* Um componente dedicado de `Journaling` será responsável por esta tarefa.
-* Toda vez que um FIX é recebido no **Inbound Gateway**, ele deve ser escrito **primeiro** num arquivo de log e só depois o respectivo comando deve ser enviado para a **Inbound Queue**.
-* Este log é a prova de que tudo aconteceu e na ordem correta. Em um sistema real, ele seria usado para reconstruir o estado do `Order Book` em caso de falha ou para permitir `Replays` caso necessário (release, investigação de bug, etc.).
+* The **Inbound Gateway** is responsible for this task.
+* Every time a message is received, it must **first** be written to the `wah_input.log` file **before** the corresponding `Command` is created and placed on the `Command Queue`.
+* This log is used to reconstruct the state of the `Order Book` in case of a system failure (Recovery by Replay).
 
-### RF07: Permitir o Cancelamento de Ordens e Alteração de Ordens
+### FR07: Allow Order Cancellation and Amendment
 
-Um cliente deve ser capaz de solicitar o cancelamento/alteração de uma ordem que ele enviou anteriormente e que ainda não foi totalmente executada.
+Clients must be able to request the cancellation or modification of an active order.
 
-* O **Gateway de Entrada** recebe uma solicitação (simulando uma mensagem FIX `OrderCancelRequest` 35=F ou `OrderAmendRequest` 35=G), que contém o `OrderID` da ordem a ser impactada.
-* Essa solicitação é colocada na **Fila de Entrada**.
-* O **Motor de Matching** processa a solicitação: ele busca a ordem pelo `OrderID` no seu respectivo `OrderBook`.
-* Se um cancelamento foi solicitado:
-   * Se a ordem for encontrada, ela é removida do livro. O motor então gera um evento `Cancel Accept` e o coloca na **Fila de Saída**.
-   * Se a ordem não for encontrada (porque já foi totalmente executada ou o ID está errado), o motor pode gerar um evento de `Cancel Rejected`.
-* Se uma alteração foi solicitada:
-   * Se a ordem for encontrada, ela é removida do livro. O motor então modifica seus parâmetros, volta ela pro book (alterando sua prioridade), emite um evento de `Ammend Accept` e o coloca na **Fila de Saída**.
-   * Se a ordem não for encontrada (porque já foi totalmente executada ou o ID está errado), o motor pode gerar um evento de `Ammend Rejected`.
+* The **Inbound Gateway** receives a request (e.g., FIX `35=F` for Cancel, `35=G` for Amend) and creates the appropriate `CancelOrderCommand` or `AmendOrderCommand`.
+* The command is placed on the **Command Queue**.
+* The **Matching Engine** processes the command by locating the order in the `OrderBook`.
+* Based on the outcome, the Engine publishes the corresponding event (e.g., `OrderCanceled`, `CancelRejected`) to the **Event Bus**.
 
-### RF08: Publicação de Dados de Mercado (Market Data)
+### FR08: Publication of Market Data
 
-O sistema deve ser capaz de fornecer e publicar informações sobre o estado do livro de ofertas para os clientes. Isso inclui, no mínimo, o "Top of Book" (melhor preço de compra e venda) e, idealmente, a profundidade do mercado.
+The system must publish information about the state of the order book.
 
-* **Top of Book (ToB):** A melhor oferta de compra (o maior preço) e a melhor oferta de venda (o menor preço) disponíveis.
-* **Profundidade do Mercado (Market Depth):** Uma visão agregada do livro, mostrando a quantidade total de ações disponíveis em cada nível de preço. Ex: `PETR4 Bids: 1000 @ 30.00, 5000 @ 29.99, ...`
-* **Impacto na Arquitetura:** O `Matching Engine`, após qualquer mudança no `OrderBook` (nova ordem, cancelamento, trade), geraria um snapshot do estado do mercado (ToB ou Depth). Esse snapshot seria um novo tipo de evento, colocado na **Fila de Saída** para ser distribuído pelo **Publicador de Eventos**, assim como os relatórios de execução.
+* This includes **Top of Book (ToB)** and **Market Depth**.
+* **Architectural Flow:** After any change to an `OrderBook`, the `Matching Engine` generates a market data event (e.g., `BookSnapshotEvent`). This event is published to the **Event Bus**, which routes it to the dedicated **Market Data Channel** for consumption by the `Market Data Gateway`.
 
-### RF09: Suporte para Ordens a Mercado (Market Order)
+### FR09: Support for Market Orders
 
-O sistema deve aceitar "Ordens a Mercado", que são ordens de compra ou venda para serem executadas imediatamente ao melhor preço disponível no mercado. O cliente não especifica um preço, apenas a quantidade.
+The system must accept Market Orders, which execute immediately against the best available prices.
 
-* Uma ordem a mercado é, por natureza, sempre "agressora". Ela nunca descansa no livro.
-* **Lógica de Execução:** Ao receber uma ordem de compra a mercado, o **Motor de Matching** deve executá-la contra as ordens de venda (`Asks`) no livro, começando pela de menor preço e subindo até que a quantidade da ordem a mercado seja totalmente preenchida. O processo é o inverso para uma ordem de venda a mercado (começa executando contra o `Bid` de maior preço).
-* **Impacto na Arquitetura:** A lógica no `Matching Engine` se torna um pouco mais complexa, pois precisa iterar por múltiplos níveis de preço do livro para satisfazer uma única ordem de entrada.
+* Market Orders are always aggressive and sweep the book, consuming liquidity from one or more price levels until their quantity is filled.
+* The logic for this resides within the **Matching Engine**.
 
-## Requisitos Não-Funcionais (RNFs)
+## Non-Functional Requirements (NFRs)
 
-### RNF01: Baixa Latência (Low Latency)
+### NFR01: Low Latency
+* The 99th percentile (p99) latency for order processing must be **less than 10 milliseconds (ms)**.
 
-Representa o tempo total para processar uma única ordem, desde sua chegada no sistema até a geração de um resultado. Uma baixa latência é crucial para garantir que as negociações sejam justas e executadas ao melhor preço possível em um mercado que muda a cada instante.
+### NFR02: High Throughput
+* The system must support a sustained throughput of at least **1,000 orders per second**.
 
-* A latência de 99% de todas as ordens processadas (percentil 99) deve ser **inferior a 10 milissegundos (ms)**.
+### NFR03: Concurrency
+* The system must safely handle simultaneous requests from multiple threads without data corruption, race conditions, or deadlocks.
 
-### RNF02: Alto Throughput (Vazão)
+### NFR04: Resilience and Correctness
+* Order/Trade Loss Rate: **0%**.
+* Rejection Rate due to internal system failure: **0%**.
 
-É a capacidade do sistema de processar um grande volume de ordens por segundo de forma contínua. Um alto throughput é essencial para suportar momentos de alta volatilidade do mercado sem criar filas de processamento e aumentar a latência para todos.
-
-* O sistema deve suportar uma vazão sustentada de, no mínimo, **1.000 ordens por segundo**.
-
-### RNF03: Concorrência (Concurrency)
-
-É a capacidade do sistema de gerenciar múltiplas operações e requisições simultaneamente de forma segura, garantindo a consistência e a integridade dos dados, especialmente do livro de ofertas. A concorrência é a principal ferramenta para se alcançar alto throughput.
-
-* O sistema deve passar em todos os testes de estresse que utilizam múltiplas threads para enviar ordens e cancelamentos concorrentemente, sem gerar *race conditions* (condições de corrida), *deadlocks* ou qualquer inconsistência no estado final do livro.
-
-### RNF04: Resiliência e Correção (Resilience & Correctness)
-
-Garante que o sistema é robusto contra falhas, se comporta de maneira previsível mesmo com entradas inesperadas e que todos os seus cálculos e transações são perfeitos e auditáveis. A correção é inegociável em um sistema financeiro.
-
-* Taxa de Perda de Ordens ou Negócios: **0%**.
-* Taxa de Rejeição de ordens por falha interna do sistema: **0%**.
-
-### RNF05: Observabilidade (Observability)
-
-É a capacidade de entender o estado e o comportamento interno do sistema através de suas saídas externas, como logs detalhados e métricas. Uma boa observabilidade é indispensável para depurar, monitorar e entender a performance do sistema.
-
-* O `Journal` de eventos deve registrar 100% das transações do sistema (novas ordens, cancelamentos, negócios, etc.).
-* O atraso entre um evento ocorrer e ser persistido no `Journal` deve ser **inferior a 1 segundo**.
+### NFR05: Observability
+* The `Auditor`'s journal must log 100% of all transactional events.
+* The delay between an event occurring and being persisted in the journal must be **less than 1 second**.
