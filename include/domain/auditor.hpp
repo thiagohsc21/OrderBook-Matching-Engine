@@ -9,7 +9,7 @@
 
 class Auditor {
 public:
-    explicit Auditor(ThreadSafeQueue<std::shared_ptr<const Event>>& event_queue, const std::string& log_file_path = "src/logs/auditor_log/events.log");
+    explicit Auditor(ThreadSafeQueue<std::shared_ptr<const Event>>& event_queue, const std::string& log_file_path = "src/logs/auditor_log.log");
     bool initialize();
     void run();
 
@@ -21,4 +21,4 @@ private:
     void writeEventLog(const std::shared_ptr<const Event>& event);
 };
 
-#endif 
+#endif // AUDITOR_HPP

@@ -8,8 +8,9 @@
 #include "messaging/events/order_accepted_event.hpp"
 #include "utils/timestamp_formatter.hpp" 
 
-Engine::Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue)
-    : command_queue_(command_queue)
+Engine::Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue, EventBusDispatcher& event_bus)
+    : command_queue_(command_queue), 
+      event_bus_(event_bus)
 {
 }
 
@@ -60,9 +61,9 @@ void Engine::run()
     std::cout << "Engine has finished consuming." << std::endl;
 }
 
-void Engine::publishEvent(std::shared_ptr<const Event> event)
+void Engine::publishEvent(std::shared_ptr<Event> event)
 {
-    // publica o evento
+    event_bus_.publish(event);
 }
 
 bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
@@ -97,15 +98,17 @@ bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
     }
 
     std::cout << "Processing new order with ID: " << new_order_ptr->getOrderId() << ", Symbol: " << symbol << ", Side: " << (new_order_ptr->getSide() == OrderSide::Buy ? "Buy" : "Sell") << ", Price: " << new_order_ptr->getPrice() << ", Quantity: " << new_order_ptr->getQuantity() << "\n";
-    orderBookPtr->printOrders();
+    std::shared_ptr<OrderAcceptedEvent> order_accepted_event = std::make_shared<OrderAcceptedEvent>(*new_order_ptr);
+    publishEvent(order_accepted_event);
    
     tryMatchOrderWithTopOfBook(new_order_ptr, *orderBookPtr);
 
     if (!new_order_ptr->isFilled() && orderBookPtr->addOrder(new_order_ptr)) 
     {
-        std::shared_ptr<OrderAcceptedEvent> oder_accepted_event = std::make_shared<OrderAcceptedEvent>(new_order_ptr);
-        publishEvent(oder_accepted_event);
+        std::cout << "Order with ID: " << new_order_ptr->getOrderId() << " added to OrderBook for symbol: " << symbol << "\n";
     }
+
+    orderBookPtr->printOrders();
 
     return true;
 }
@@ -136,7 +139,7 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggressive_order,
                     << " | Aggressive ID: <" << trade->getAggressiveOrderId() << ">, Passive ID: <" << trade->getPassiveOrderId() << ">" << " | Aggressive Remaining: " << aggressive_order->getRemainingQuantity()
                     << ", Passive Remaining: " << passive_order->getRemainingQuantity() << ", Filled Qty: " << filled_qty << "\n";
 
-            std::shared_ptr<TradeExecutedEvent> trade_event = std::make_shared<TradeExecutedEvent>(trade, aggressive_order, passive_order);
+            std::shared_ptr<TradeExecutedEvent> trade_event = std::make_shared<TradeExecutedEvent>(*trade, *aggressive_order, *passive_order);
             publishEvent(trade_event);
 
             if (passive_order->isFilled()) 
@@ -150,7 +153,8 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggressive_order,
                            (!is_buy_side && passive_order && aggressive_order->getPrice() <= passive_order->getPrice());
         }
 
-        std::cout << "Order with ID: " << aggressive_order->getOrderId() << " is " << (aggressive_order->getRemainingQuantity() == 0 ? "fully" : "partially") << " filled with average price: " << aggressive_order->getAveragePrice() << " and will not be added to the book\n";
+        std::cout << "Order with ID: " << aggressive_order->getOrderId() << " is " << (aggressive_order->getRemainingQuantity() == 0 ? "fully" : "partially") << " filled with average price: " 
+                  << aggressive_order->getAveragePrice() << ", remaining quantity: " << aggressive_order->getRemainingQuantity() << (aggressive_order->getRemainingQuantity() == 0 ? " and will not be added to the book\n" : " and will be added to the book\n");
     } 
 }
 

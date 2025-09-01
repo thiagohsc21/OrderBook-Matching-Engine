@@ -4,10 +4,12 @@
 #include <memory>
 #include "utils/thread_safe_queue.hpp" 
 #include "domain/inbound_gateway.hpp"
+#include "domain/auditor.hpp"
 #include "utils/fix_generator.hpp"
 #include "utils/timestamp_formatter.hpp"
 #include "messaging/commands/new_order_command.hpp"
 #include "domain/engine.hpp"
+#include "domain/event_bus_dispatcher.hpp"
 #include <iomanip>
 #include "domain/order.hpp"
 #include <vector>
@@ -25,7 +27,7 @@ void fix_producer(InboundGateway& gateway, int thread_id, ThreadSafeQueue<std::u
 
     try 
     {
-        while (counter < 10) 
+        while (counter < 5) 
         {   
             auto [fixMessage, receivedFixTime] = FixGenerator::generateFIXMessageForThread();
             std::unique_ptr<Command> commandPtr = gateway.parseAndCreateCommand(fixMessage, std::to_string(thread_id), receivedFixTime);
@@ -55,14 +57,23 @@ void fix_producer(InboundGateway& gateway, int thread_id, ThreadSafeQueue<std::u
 int main() {
 
     ThreadSafeQueue<std::unique_ptr<Command>> commandQueue;
-    InboundGateway inboundGateway(commandQueue, "src/logs/write_ahead_log.txt");
+    ThreadSafeQueue<std::shared_ptr<const Event>> eventQueue;
 
-	// Inicializa a engine que consome os comandos da fila
-	// A engine vai processar os comandos e executar as ações necessárias e para isso criamos uma thread que chama o método run()
-	// A thread vai ficar rodando em segundo plano, consumindo os comandos da fila e executando-os
-	Engine engine(commandQueue);
+    InboundGateway inboundGateway(commandQueue);
+
+    Auditor auditor(eventQueue);
+    auditor.initialize();
+
+    EventBusDispatcher eventBus(eventQueue);
+
+	Engine engine(commandQueue, eventBus);
     engine.initialize();
 
+    // A thread do auditor vai ficar rodando em segundo plano, consumindo os eventos da fila e logando-os
+    std::thread auditorThread(&Auditor::run, &auditor);
+
+    // A engine vai processar os comandos e executar as ações necessárias e para isso criamos uma thread que chama o método run()
+	// A thread vai ficar rodando em segundo plano, consumindo os comandos da fila e executando-os
 	std::thread engineThread(&Engine::run, &engine);  
     
     int clientNumber = 2;
@@ -80,18 +91,22 @@ int main() {
         clients.emplace_back(fix_producer, std::ref(inboundGateway), i, std::ref(commandQueue));
     }
 
-    // Serve para que a thread principal (main) aguarde o término de todas as threads criadas
+    // Serve para que a thread principal (main) aguarde o término de todas as threads de clientes criadas
 	// Isso é importante para evitar que o programa termine antes das threads concluírem suas execuções
     for (std::thread& t : clients) 
 	{
         t.join();
     }
     
-    // Sinaliza que os clientes ja pararam de produzir e ta na hora de desligar a fila
+    // Se thread da main chegou aqui, os clientes ja pararam de produzir e ta na hora de desligar a fila
     commandQueue.shutdown(); 
 
     // Garante que a main espere a engine terminar de consumir os comandos da queue
     engineThread.join(); 
+
+    // Agora que a engine terminou, podemos desligar a fila de eventos e esperar o auditor terminar
+    eventQueue.shutdown();
+    auditorThread.join();
 
     //engine.printOrderBooks();
 
