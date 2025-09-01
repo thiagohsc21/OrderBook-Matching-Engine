@@ -1,23 +1,23 @@
-# Simulador de Matching Engine Financeiro em C++
+# Financial Matching Engine Simulator in C++
 
-![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow)
-![Linguagem](https://img.shields.io/badge/language-C%2B%2B17-blue)
-![Licença](https://img.shields.io/badge/license-MIT-green)
+![Status](https://img.shields.io/badge/status-in%20development-yellow)
+![Language](https://img.shields.io/badge/language-C%2B%2B17-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## Sobre o Projeto
+## About the Project
 
-Este projeto é um simulador de um motor de cruzamento de ordens financeiras (Matching Engine) e seu respectivo livro de ofertas (Order Book), desenvolvido em C++ moderno com foco em design, performance e concorrência. O objetivo é criar uma base sólida que simula o núcleo de uma bolsa de valores, seguindo as melhores práticas de engenharia de software.
+This project is a simulator of a financial order matching engine (Matching Engine) and its respective order book, developed in modern C++ with a strong focus on design, performance, and concurrency. The goal is to build a solid foundation that simulates the core of a stock exchange, following software engineering best practices.
 
-## Visão Geral da Arquitetura
+## Architecture Overview
 
-O sistema é modelado como uma pipeline de processamento de eventos. As requisições externas (comandos) são recebidas por um `Inbound Gateway`, traduzidas para um formato interno e colocadas em uma fila de comandos. Um `Matching Engine` dedicado consome esses comandos, aplica a lógica de negócio contra o `Order Book` e gera eventos de resultado.
+The system is modeled as an event-processing pipeline. External requests (commands) are received by an `Inbound Gateway`, translated into an internal format, and placed into a command queue. A dedicated `Matching Engine` consumes these commands, applies business logic against the `Order Book`, and generates result events.
 
-Esses eventos são publicados em um `Event Bus` central, que atua como um roteador, direcionando eventos transacionais e de dados de mercado para canais de saída distintos e especializados. Isso garante que notificações críticas de execução não sejam atrasadas por atualizações de mercado de alto volume.
+These events are published to a central `Event Bus`, which acts as a router, directing transactional and market data events to distinct, specialized output channels. This ensures that critical execution notifications are not delayed by high-volume market data updates.
 
-## Documentação Completa do Projeto
+## Full Project Documentation
 
-Toda a fase de planejamento e design foi documentada em detalhes, consulte os seguintes documentos:
+The entire planning and design phase has been documented in detail. Refer to the following documents:
 
-* **[Requisitos do Sistema](documentation/requirements.md):** Define o "quê" o sistema deve fazer (Requisitos Funcionais) e o "quão bem" ele deve operar (Requisitos Não-Funcionais e SLOs).
-* **[Arquitetura do Sistema](documentation/architecture.md):** Apresenta o "como", com o design de alto nível dos componentes, o fluxograma completo e a responsabilidade de cada parte da arquitetura.
-* **[Modelo de Dados e Entidades](documentation/entities.md):** Detalha as "peças" do sistema, especificando cada entidade de domínio (`Order`, `Trade`) e de mensageria (`Command`, `Event`).
+* **[System Requirements](documentation/requirements.md):** Defines *what* the system must do (Functional Requirements) and *how well* it must operate (Non-Functional Requirements and Service Level Objective (SLOs)).
+* **[System Architecture](documentation/architecture.md):** Describes the *how*, including the high-level design of components, the complete flow diagram, and the responsibilities of each architectural part.
+* **[Data Model and Entities](documentation/entities.md):** Details the *building blocks* of the system, specifying each domain entity (`Order`, `Trade`) and messaging entity (`Command`, `Event`).
