@@ -20,7 +20,7 @@ public:
     explicit Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue);
 
     bool initialize();
-    void consumeQueue();
+    void run();
     bool initializeOrderBooks(const std::string& symbol);
     void printOrderBooks() const;
 
@@ -33,7 +33,6 @@ public:
 private:
     ThreadSafeQueue<std::unique_ptr<Command>>& command_queue_;
     std::unordered_map<std::string, std::unique_ptr<OrderBook>> order_books_; // Mapeia símbolos para seus respectivos OrderBooks
-    std::atomic<bool> stop_consuming_;
 };
 
 #endif // ENGINE_HPP

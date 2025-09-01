@@ -58,12 +58,12 @@ int main() {
     InboundGateway inboundGateway(commandQueue, "src/logs/write_ahead_log.txt");
 
 	// Inicializa a engine que consome os comandos da fila
-	// A engine vai processar os comandos e executar as ações necessárias e para isso criamos uma thread que chama o método consumeQueue()
+	// A engine vai processar os comandos e executar as ações necessárias e para isso criamos uma thread que chama o método run()
 	// A thread vai ficar rodando em segundo plano, consumindo os comandos da fila e executando-os
 	Engine engine(commandQueue);
     engine.initialize();
 
-	std::thread engineThread(&Engine::consumeQueue, &engine);  
+	std::thread engineThread(&Engine::run, &engine);  
     
     int clientNumber = 2;
     std::vector<std::thread> clients;

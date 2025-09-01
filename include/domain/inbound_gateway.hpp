@@ -13,15 +13,16 @@ class InboundGateway
 public:
     explicit InboundGateway(ThreadSafeQueue<std::unique_ptr<Command>>& queue, const std::string& wal_file_path);
 
-    void writeAheadLog(const std::string& log_message);
     bool pushToQueue(std::unique_ptr<Command> commandPtr);
     std::unique_ptr<Command> parseAndCreateCommand(const std::string& lines, const std::string& clientId, const std::chrono::system_clock::time_point& timestamp);
     std::unique_ptr<Command> createCommandFromFields(const std::map<std::string, std::string>& fields, const std::chrono::system_clock::time_point& timestamp);
 
 private:
     ThreadSafeQueue<std::unique_ptr<Command>>& command_queue_;
-    const std::string& wal_file_path_;
+    std::string wal_file_path_;
     std::ofstream wal_file_;
+
+    void writeAheadLog(const std::string& log_message);
 };
 
 #endif // INBOUND_GATEWAY_HPP

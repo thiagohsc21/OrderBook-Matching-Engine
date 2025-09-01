@@ -9,8 +9,7 @@
 #include "utils/timestamp_formatter.hpp" 
 
 Engine::Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue)
-    : command_queue_(command_queue),
-      stop_consuming_(false)
+    : command_queue_(command_queue)
 {
 }
 
@@ -43,7 +42,7 @@ bool Engine::initializeOrderBooks(const std::string& symbol)
     return true;
 }
 
-void Engine::consumeQueue() 
+void Engine::run() 
 {
     while (true) 
     {
