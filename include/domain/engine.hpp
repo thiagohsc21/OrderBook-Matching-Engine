@@ -5,7 +5,7 @@
 #include "domain/order_book.hpp"
 #include "messaging/commands/command.hpp"
 #include "messaging/events/event.hpp"
-#include <atomic>
+#include "domain/event_bus_dispatcher.hpp"
 #include <unordered_map>
 
 
@@ -17,7 +17,7 @@ class Engine
     // validação, etc. Bem como de construir o OrderBook e manter o estado do sistema.
 
 public:
-    explicit Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue);
+    explicit Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue, EventBusDispatcher& event_bus);
 
     bool initialize();
     void run();
@@ -25,13 +25,14 @@ public:
     void printOrderBooks() const;
 
     bool processNewOrderCommand(std::shared_ptr<Order> new_order_ptr);
-    void publishEvent(std::shared_ptr<const Event> event);
+    void publishEvent(std::shared_ptr<Event> event);
     
     void tryMatchOrderWithTopOfBook(std::shared_ptr<Order> new_order_ptr, OrderBook& orderBook);
     std::unordered_map<std::string, std::unique_ptr<OrderBook>>& getOrderBooks() { return order_books_; }
 
 private:
     ThreadSafeQueue<std::unique_ptr<Command>>& command_queue_;
+    EventBusDispatcher& event_bus_;
     std::unordered_map<std::string, std::unique_ptr<OrderBook>> order_books_; // Mapeia símbolos para seus respectivos OrderBooks
 };
 

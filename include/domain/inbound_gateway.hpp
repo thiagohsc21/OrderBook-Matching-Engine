@@ -11,7 +11,7 @@
 class InboundGateway 
 {
 public:
-    explicit InboundGateway(ThreadSafeQueue<std::unique_ptr<Command>>& queue, const std::string& wal_file_path);
+    explicit InboundGateway(ThreadSafeQueue<std::unique_ptr<Command>>& queue, const std::string& wal_file_path = "src/logs/write_ahead_log.log");
 
     bool pushToQueue(std::unique_ptr<Command> commandPtr);
     std::unique_ptr<Command> parseAndCreateCommand(const std::string& lines, const std::string& clientId, const std::chrono::system_clock::time_point& timestamp);

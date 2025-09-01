@@ -12,7 +12,8 @@
 #include <typeinfo>
 
 Auditor::Auditor(ThreadSafeQueue<std::shared_ptr<const Event>>& event_queue, const std::string& log_file_path)
-    : event_queue_(event_queue), log_file_path_(log_file_path)
+    : event_queue_(event_queue), 
+      log_file_path_(log_file_path)
 {
 }
 
@@ -89,31 +90,28 @@ void Auditor::writeEventLog(const std::shared_ptr<const Event>& event)
     
     if (auto orderEvent = std::dynamic_pointer_cast<const OrderAcceptedEvent>(event)) {
         eventType = "OrderAccepted";
-        auto order = orderEvent->getOrder();
-        if (order) {
-            std::stringstream details;
-            details << "OrderID:" << order->getOrderId() 
-                   << "| ClientID:" << order->getClientId()
-                   << "| Symbol:" << order->getSymbol()
-                   << "| Side:" << static_cast<int>(order->getSide())
-                   << "| Quantity:" << order->getQuantity()
-                   << "| Price:" << order->getPrice();
-            eventDetails = details.str();
-        }
+        std::stringstream details;
+        details << "OrderID:" << orderEvent->getOrderId() 
+               << " | ClientID:" << orderEvent->getClientId()
+               << " | ClientOrderID:" << orderEvent->getClientOrderId()
+               << " | Symbol:" << orderEvent->getSymbol()
+               << " | Side:" << static_cast<int>(orderEvent->getSide())
+               << " | Quantity:" << orderEvent->getQuantity()
+               << " | Price:" << orderEvent->getPrice();
+        eventDetails = details.str();
     }
     else if (auto tradeEvent = std::dynamic_pointer_cast<const TradeExecutedEvent>(event)) {
         eventType = "TradeExecuted";
-        auto trade = tradeEvent->getTrade();
-        if (trade) {
-            std::stringstream details;
-            details << "TradeID:" << trade->getTradeId()
-                   << "| Symbol:" << trade->getSymbol()
-                   << "| Quantity:" << trade->getQuantity()
-                   << "| Price:" << trade->getPrice()
-                   << "| AggressiveOrderID:" << trade->getAggressiveOrderId()
-                   << "| PassiveOrderID:" << trade->getPassiveOrderId();
-            eventDetails = details.str();
-        }
+        std::stringstream details;
+        details << "TradeID:" << tradeEvent->getTradeId()
+               << " | Symbol:" << tradeEvent->getSymbol()
+               << " | Quantity:" << tradeEvent->getQuantity()
+               << " | Price:" << tradeEvent->getPrice()
+               << " | AggressiveOrderID:" << tradeEvent->getAggressiveOrderId()
+               << " | PassiveOrderID:" << tradeEvent->getPassiveOrderId()
+               << " | AggressiveRemainingQty:" << tradeEvent->getAggressiveRemainingQuantity()
+               << " | PassiveRemainingQty:" << tradeEvent->getPassiveRemainingQuantity();
+        eventDetails = details.str();
     }
     else {
         // Evento genérico
