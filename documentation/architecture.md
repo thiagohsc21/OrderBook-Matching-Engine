@@ -17,7 +17,7 @@ This documentation describes the responsibilities and interactions of each main 
 * **Primary Responsibility:** To provide a durable, chronological record of all requests that entered the system, for replay and disaster recovery purposes.
 * **Inputs:** Raw text strings from the `Inbound Gateway`.
 * **Processing:** Simply appends the received string to a file on disk.
-* **Outputs:** The `InputLog.txt` file.
+* **Outputs:** The `wah_input.log` file.
 
 ### 3. Command Queue
 
@@ -76,7 +76,7 @@ This documentation describes the responsibilities and interactions of each main 
 * **Primary Responsibility:** To create a complete, persistent, human-readable audit trail of all transactional events.
 * **Inputs:** `Event` objects from the `Event Queue`.
 * **Processing:** Formats each event into a standardized text line and persists it to disk.
-* **Outputs:** A text file (`SystemJournal.txt`).
+* **Outputs:** A text file (`auditor.log`).
 
 ### 11. Market Data Gateway
 
@@ -84,4 +84,5 @@ This documentation describes the responsibilities and interactions of each main 
 * **Inputs:** The latest `MarketDataSnapshotEvent` available on the `Market Data Channel`.
 * **Processing:** Formats the snapshot data into a suitable broadcast format (e.g., JSON).
 * **Outputs:** A continuous stream of market data to clients.
+
 
