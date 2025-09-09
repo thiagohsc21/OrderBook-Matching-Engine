@@ -18,11 +18,13 @@ bool OrderBook::addOrder(std::shared_ptr<Order> order)
     {
         bids_[price].push_back(order);
         order_id_map_[order->getOrderId()] = --bids_[price].end(); 
+        aggregated_bids_[price] += order->getRemainingQuantity();
     } 
     else 
     {
         asks_[price].push_back(order);
         order_id_map_[order->getOrderId()] = --asks_[price].end(); 
+        aggregated_asks_[price] += order->getRemainingQuantity();
     }
     
     return true;
@@ -62,7 +64,6 @@ bool OrderBook::removeOrder(uint64_t orderId)
             return false;
         }
 
-
         price_level_list.erase(list_iterator); // O(1)
         
         // Se a lista para este nível de preço ficou vazia, removemos o nível de preço do mapa
@@ -101,6 +102,43 @@ bool OrderBook::removeOrder(uint64_t orderId)
     std::cout << "Ordem de compra com ID: " << orderId << " e preço: " << price << " foi removida com sucesso\n";
 
     return true;
+}
+
+void OrderBook::updateAggregatedQuantity(OrderSide side, double price, uint32_t quantity_delta) 
+{
+    if (side == OrderSide::Buy) 
+    {
+        auto it = aggregated_bids_.find(price);
+        if (it != aggregated_bids_.end()) 
+        {
+            it->second -= quantity_delta; 
+            if (it->second <= 0) aggregated_bids_.erase(it); 
+        } 
+        else if (quantity_delta > 0) 
+        {
+            aggregated_bids_[price] = quantity_delta;
+        } 
+        else {
+            std::cerr << "AVISO: Tentativa de subtrair quantidade de um nível de preço agregado inexistente para Bids @ " << price << std::endl;
+        }
+    } 
+    else 
+    { 
+        auto it = aggregated_asks_.find(price);
+        if (it != aggregated_asks_.end()) 
+        {
+            it->second -= quantity_delta;
+            if (it->second <= 0) aggregated_asks_.erase(it);
+        } 
+        else if (quantity_delta > 0) 
+        {
+             aggregated_asks_[price] = quantity_delta;
+        } 
+        else 
+        {
+            std::cerr << "AVISO: Tentativa de subtrair quantidade de um nível de preço agregado inexistente para Asks @ " << price << std::endl;
+        }
+    }
 }
 
 void OrderBook::printTopAsk() const
