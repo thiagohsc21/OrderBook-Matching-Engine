@@ -4,9 +4,11 @@
 #include <memory>
 #include "utils/thread_safe_queue.hpp" 
 #include "domain/inbound_gateway.hpp"
+#include "domain/market_data_gateway.hpp"
 #include "domain/auditor.hpp"
 #include "utils/fix_generator.hpp"
 #include "utils/timestamp_formatter.hpp"
+#include "utils/market_data_channel.hpp"
 #include "messaging/commands/new_order_command.hpp"
 #include "domain/engine.hpp"
 #include "domain/event_bus_dispatcher.hpp"
@@ -64,7 +66,11 @@ int main() {
     Auditor auditor(eventQueue);
     auditor.initialize();
 
-    EventBusDispatcher eventBus(eventQueue);
+    MarketDataChannel marketDataChannel;
+    EventBusDispatcher eventBus(eventQueue, marketDataChannel);
+
+    MarketDataGateway marketDataGateway(marketDataChannel);
+    marketDataGateway.initialize();
 
 	Engine engine(commandQueue, eventBus);
     engine.initialize();
@@ -75,6 +81,8 @@ int main() {
     // A engine vai processar os comandos e executar as ações necessárias e para isso criamos uma thread que chama o método run()
 	// A thread vai ficar rodando em segundo plano, consumindo os comandos da fila e executando-os
 	std::thread engineThread(&Engine::run, &engine);  
+
+    std::thread marketDataGatewayThread(&MarketDataGateway::run, &marketDataGateway);
     
     int clientNumber = 2;
     std::vector<std::thread> clients;
@@ -107,6 +115,9 @@ int main() {
     // Agora que a engine terminou, podemos desligar a fila de eventos e esperar o auditor terminar
     eventQueue.shutdown();
     auditorThread.join();
+
+    marketDataChannel.shutdown();
+    marketDataGatewayThread.join();
 
     //engine.printOrderBooks();
 

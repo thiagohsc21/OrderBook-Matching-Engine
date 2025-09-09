@@ -75,7 +75,7 @@ Commands represent an intent or a request to change the state of the system. The
 
 Events are immutable objects representing a fact that has already occurred in the system.
 
-#### Transactional Events (for the `Execution Queue`)
+#### Transactional Events (for the `Event Queue`)
 
 | Event | Purpose | `ExecType` Generated |
 | :--- | :--- | :--- |

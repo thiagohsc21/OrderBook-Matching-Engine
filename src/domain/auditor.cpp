@@ -57,6 +57,7 @@ bool Auditor::initialize()
 
 void Auditor::run() 
 {
+    std::cout << "[Auditor] Thread started. Waiting for events..." << std::endl;
     while (true) 
     {
         std::shared_ptr<const Event> event;

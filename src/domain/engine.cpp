@@ -6,6 +6,7 @@
 #include "messaging/commands/command.hpp"
 #include "messaging/events/trade_executed_event.hpp"
 #include "messaging/events/order_accepted_event.hpp"
+#include "messaging/events/book_snapshot_event.hpp"
 #include "utils/timestamp_formatter.hpp" 
 
 Engine::Engine(ThreadSafeQueue<std::unique_ptr<Command>>& command_queue, EventBusDispatcher& event_bus)
@@ -45,6 +46,8 @@ bool Engine::initializeOrderBooks(const std::string& symbol)
 
 void Engine::run() 
 {
+    std::cout << "[Engine] Thread started. Waiting for commands..." << std::endl;
+
     while (true) 
     {
         std::unique_ptr<Command> command;
@@ -61,7 +64,7 @@ void Engine::run()
     std::cout << "Engine has finished consuming." << std::endl;
 }
 
-void Engine::publishEvent(std::shared_ptr<Event> event)
+void Engine::publishEvent(std::shared_ptr<const Event> event)
 {
     event_bus_.publish(event);
 }
@@ -90,6 +93,7 @@ bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
 
     // O ponteiro inteligente só gerencia a memória pra gente, mas isso seria equivalente a e it->second é OrderBook*, então (OrderBook*)& orderBookPtr = it->second; 
     // orderBookPtr é um end de memória que aponta pra outro end que é o objeto OrderBook real. A diferença do ponteiro inteligente é que não usamos * explicitamente
+    // é um apelido pro objeto em it->second
     std::unique_ptr<OrderBook>& orderBookPtr = it->second;
     if (!orderBookPtr) 
     {
@@ -106,6 +110,8 @@ bool Engine::processNewOrderCommand(std::shared_ptr<Order> new_order_ptr)
     if (!new_order_ptr->isFilled() && orderBookPtr->addOrder(new_order_ptr)) 
     {
         std::cout << "Order with ID: " << new_order_ptr->getOrderId() << " added to OrderBook for symbol: " << symbol << "\n";
+        std::shared_ptr<BookSnapshotEvent> book_snapshot_event = std::make_shared<BookSnapshotEvent>(*orderBookPtr);
+        publishEvent(book_snapshot_event);
     }
 
     orderBookPtr->printOrders();
@@ -130,6 +136,9 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggressive_order,
             aggressive_order->applyFill(filled_qty, passive_order->getPrice());
             passive_order->applyFill(filled_qty, passive_order->getPrice());
 
+            // Update aggregated quantity in the OrderBook
+            orderBook.updateAggregatedQuantity(passive_order->getSide(), passive_order->getPrice(), filled_qty);
+
             std::shared_ptr<Trade> trade = std::make_shared<Trade>(
                 Trade::getNextTradeId(), aggressive_order->getOrderId(), passive_order->getOrderId(),
                 orderBook.getSymbol(), passive_order->getPrice(), filled_qty, std::chrono::system_clock::now()
@@ -147,6 +156,9 @@ void Engine::tryMatchOrderWithTopOfBook(std::shared_ptr<Order> aggressive_order,
                 std::cout << "Order with ID: " << passive_order->getOrderId() << " is fully filled with average price: " << passive_order->getAveragePrice() << "\n";
                 orderBook.removeOrder(passive_order->getOrderId());
             }
+
+            std::shared_ptr<BookSnapshotEvent> book_snapshot_event = std::make_shared<BookSnapshotEvent>(orderBook);
+            publishEvent(book_snapshot_event);
 
             passive_order = is_buy_side ? orderBook.getTopAsk() : orderBook.getTopBid();
             is_aggresive = (is_buy_side && passive_order && aggressive_order->getPrice() >= passive_order->getPrice()) ||

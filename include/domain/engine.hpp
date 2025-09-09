@@ -25,7 +25,7 @@ public:
     void printOrderBooks() const;
 
     bool processNewOrderCommand(std::shared_ptr<Order> new_order_ptr);
-    void publishEvent(std::shared_ptr<Event> event);
+    void publishEvent(std::shared_ptr<const Event> event);
     
     void tryMatchOrderWithTopOfBook(std::shared_ptr<Order> new_order_ptr, OrderBook& orderBook);
     std::unordered_map<std::string, std::unique_ptr<OrderBook>>& getOrderBooks() { return order_books_; }

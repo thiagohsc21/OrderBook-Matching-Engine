@@ -34,6 +34,10 @@ public:
     const std::map<double, std::list<std::shared_ptr<Order>>>& getAsks() const { return asks_; }
     const std::unordered_map<uint64_t, OrderIterator>& getOrderIdMap() const { return order_id_map_; }
 
+    const std::map<double, uint64_t, std::greater<double>>& getAggregatedBids() const { return aggregated_bids_; }
+    const std::map<double, uint64_t>& getAggregatedAsks() const { return aggregated_asks_; }
+    void updateAggregatedQuantity(OrderSide side, double price, uint32_t quantity);
+
 private:
     // Simbolo do book, por exemplo "AAPL", "GOOGL", etc.
     std::string symbol_;
@@ -48,6 +52,12 @@ private:
     // Ela serve para buscarmos o iterador de uma ordem específica usando o ID da ordem
     // O iterador aponta para uma posicao na lista de ordens no nível de preço, dessa forma podemos remover a ordem rapidamente
     std::unordered_map<uint64_t, OrderIterator> order_id_map_;
+
+    // Mapeia um preço diretamente para a quantidade total naquele preço. Serve como um snapshot do livro
+    // Dessa forma, não precisamos iterar pela lista de ordens para saber a quantidade total naquele nível de preço
+    // Quando quisermos retornar um book para o MarketDataGateway, podemos usar esses mapas agregados
+    std::map<double, uint64_t, std::greater<double>> aggregated_bids_;
+    std::map<double, uint64_t> aggregated_asks_;
 };
 
 #endif // ORDER_BOOK_HPP
