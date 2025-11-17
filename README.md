@@ -1,6 +1,6 @@
 # Financial Matching Engine Simulator 
 
-![Status](https://img.shields.io/badge/status-in%20development-yellow)
+![Status](https://img.shields.io/badge/status-stand%20by-orange)
 ![Language](https://img.shields.io/badge/language-C%2B%2B17-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -21,4 +21,5 @@ The entire planning and design phase has been documented in detail. Refer to the
 * **[System Requirements](documentation/requirements.md):** Defines *what* the system must do (Functional Requirements) and *how well* it must operate (Non-Functional Requirements and Service Level Objective (SLOs)).
 * **[System Architecture](documentation/architecture.md):** Describes the *how*, including the high-level design of components, the complete flow diagram, and the responsibilities of each architectural part.
 * **[Data Model and Entities](documentation/entities.md):** Details the *building blocks* of the system, specifying each domain entity (`Order`, `Trade`) and messaging entity (`Command`, `Event`).
+
 
