@@ -1,4 +1,6 @@
 ## Architecture Components Description
+<img width="1007" height="367" alt="image" src="https://github.com/user-attachments/assets/550f761f-dc97-47c5-a19c-3a0571e65c23" />
+
 This documentation describes the responsibilities and interactions of each main component of the Order Book Simulator.
 
 ### 1. Inbound Gateway
@@ -84,5 +86,6 @@ This documentation describes the responsibilities and interactions of each main 
 * **Inputs:** The latest `MarketDataSnapshotEvent` available on the `Market Data Channel`.
 * **Processing:** Formats the snapshot data into a suitable broadcast format (e.g., JSON).
 * **Outputs:** A continuous stream of market data to clients.
+
 
 
